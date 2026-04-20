@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AsistenciaQR">
+<link rel="manifest" href="manifest.json">
+<title>AsistenciaQR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #0f172a;
+  --bg2: #1e293b;
+  --bg3: #263148;
+  --surface: #1e293b;
+  --surface2: #263148;
+  --border: rgba(148,163,184,0.12);
+  --border2: rgba(148,163,184,0.22);
+  --text: #f1f5f9;
+  --text2: #94a3b8;
+  --text3: #64748b;
+  --accent: #38bdf8;
+  --accent2: #0ea5e9;
+  --green: #22c55e;
+  --green-bg: rgba(34,197,94,0.12);
+  --yellow: #f59e0b;
+  --yellow-bg: rgba(245,158,11,0.12);
+  --red: #ef4444;
+  --red-bg: rgba(239,68,68,0.12);
+  --purple: #a78bfa;
+  --purple-bg: rgba(167,139,250,0.12);
+  --radius: 14px;
+  --radius-sm: 8px;
+  --font: 'DM Sans', sans-serif;
+  --mono: 'Space Mono', monospace;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100dvh; overflow-x: hidden; }
+html { scroll-behavior: smooth; }
+
+/* ── LAYOUT ── */
+#app { display: flex; flex-direction: column; min-height: 100dvh; }
+.screen { display: none; flex-direction: column; flex: 1; padding-bottom: calc(80px + var(--safe-bottom)); }
+.screen.active { display: flex; }
+.screen-no-nav { padding-bottom: var(--safe-bottom); }
+
+/* ── HEADER ── */
+.header { padding: calc(var(--safe-top) + 16px) 20px 16px; background: var(--bg); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10; }
+.header-row { display: flex; align-items: center; justify-content: space-between; }
+.header h1 { font-size: 18px; font-weight: 600; letter-spacing: -0.3px; }
+.header .sub { font-size: 12px; color: var(--text3); font-family: var(--mono); margin-top: 2px; }
+.badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.5px; }
+.badge.green { background: var(--green-bg); color: var(--green); }
+.badge.yellow { background: var(--yellow-bg); color: var(--yellow); }
+.badge.red { background: var(--red-bg); color: var(--red); }
+.badge.blue { background: rgba(56,189,248,0.12); color: var(--accent); }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse 1.5s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+/* ── BOTTOM NAV ── */
+.bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 100; background: var(--bg2); border-top: 1px solid var(--border); display: flex; padding: 8px 4px calc(8px + var(--safe-bottom)); }
+.nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; border: none; background: none; color: var(--text3); font-family: var(--font); font-size: 10px; font-weight: 500; cursor: pointer; border-radius: var(--radius-sm); transition: color .2s; }
+.nav-btn.active { color: var(--accent); }
+.nav-btn svg { width: 22px; height: 22px; }
+.nav-scan { flex: 1.4; }
+.nav-scan .nav-inner { background: var(--accent); border-radius: var(--radius); padding: 10px 16px; display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--bg); font-weight: 600; }
+.nav-scan svg { width: 24px; height: 24px; }
+
+/* ── CARDS ── */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin: 0 16px 12px; }
+.card-sm { padding: 12px 14px; }
+.scroll-area { flex: 1; overflow-y: auto; padding-top: 12px; padding-bottom: 8px; -webkit-overflow-scrolling: touch; }
+
+/* ── BUTTONS ── */
+.btn { display: flex; align-items: center; justify-content: center; gap: 8px; border: none; border-radius: var(--radius); padding: 14px 20px; font-family: var(--font); font-size: 15px; font-weight: 600; cursor: pointer; transition: transform .15s, opacity .15s; width: 100%; }
+.btn:active { transform: scale(0.97); }
+.btn-primary { background: var(--accent); color: var(--bg); }
+.btn-danger { background: var(--red-bg); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+.btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border2); }
+.btn-green { background: var(--green-bg); color: var(--green); border: 1px solid rgba(34,197,94,0.3); }
+.btn svg { width: 18px; height: 18px; }
+.btn-group { display: flex; flex-direction: column; gap: 10px; padding: 0 16px; margin-top: 12px; }
+
+/* ── STAT GRID ── */
+.stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 0 16px; margin-bottom: 16px; }
+.stat-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 10px; text-align: center; }
+.stat-num { font-size: 24px; font-weight: 700; font-family: var(--mono); line-height: 1; }
+.stat-lbl { font-size: 10px; color: var(--text3); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.6px; }
+
+/* ── STUDENT LIST ── */
+.student-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.student-item:last-child { border-bottom: none; }
+.avatar { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; font-family: var(--mono); }
+.student-info { flex: 1; min-width: 0; }
+.student-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.student-id { font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 1px; }
+.student-time { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+
+/* ── SCANNER ── */
+#qr-reader { width: 100%; border-radius: var(--radius); overflow: hidden; }
+#qr-reader video { border-radius: var(--radius); }
+.scan-result { padding: 20px; border-radius: var(--radius); margin: 16px; text-align: center; transition: all .3s; }
+.scan-result.ok { background: var(--green-bg); border: 1px solid rgba(34,197,94,0.3); }
+.scan-result.dup { background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.3); }
+.scan-result.err { background: var(--red-bg); border: 1px solid rgba(239,68,68,0.3); }
+.scan-result-icon { font-size: 40px; margin-bottom: 8px; }
+.scan-result-name { font-size: 18px; font-weight: 700; }
+.scan-result-status { font-size: 13px; color: var(--text2); margin-top: 4px; font-family: var(--mono); }
+
+/* ── QR GENERATOR ── */
+.qr-card { text-align: center; }
+.qr-canvas-wrap { display: flex; justify-content: center; padding: 16px; }
+#qr-canvas { border-radius: var(--radius-sm); }
+.student-select { width: 100%; background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--radius-sm); padding: 12px 14px; color: var(--text); font-family: var(--font); font-size: 14px; margin-bottom: 12px; appearance: none; -webkit-appearance: none; }
+
+/* ── STATS ── */
+.chart-wrap { position: relative; height: 200px; margin: 16px 0; }
+.filter-row { display: flex; gap: 8px; padding: 0 16px; margin-bottom: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.filter-chip { flex-shrink: 0; padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border2); background: var(--surface); color: var(--text2); font-size: 12px; font-weight: 500; cursor: pointer; transition: all .2s; white-space: nowrap; }
+.filter-chip.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+
+/* ── INPUTS ── */
+input[type=text], input[type=email], input[type=password], textarea {
+  width: 100%; background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: var(--radius-sm); padding: 12px 14px; color: var(--text);
+  font-family: var(--font); font-size: 14px; outline: none; transition: border-color .2s;
+}
+input:focus, textarea:focus { border-color: var(--accent); }
+textarea { resize: none; height: 80px; }
+label { font-size: 12px; color: var(--text3); margin-bottom: 6px; display: block; text-transform: uppercase; letter-spacing: 0.5px; }
+.form-group { margin-bottom: 16px; }
+
+/* ── LOGIN ── */
+.login-screen { align-items: center; justify-content: center; padding: 40px 24px; gap: 0; }
+.login-logo { width: 72px; height: 72px; background: var(--accent); border-radius: 20px; display: flex; align-items: center; justify-content: center; margin-bottom: 24px; }
+.login-logo svg { width: 40px; height: 40px; color: var(--bg); }
+.login-title { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 8px; text-align: center; }
+.login-sub { font-size: 14px; color: var(--text3); text-align: center; margin-bottom: 40px; line-height: 1.5; }
+.login-form { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 16px; }
+
+/* ── CLASS BANNER ── */
+.class-banner { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin: 12px 16px; display: flex; align-items: center; gap: 12px; }
+.class-banner-info { flex: 1; }
+.class-banner-title { font-size: 13px; font-weight: 600; }
+.class-banner-time { font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px; }
+.timer { font-family: var(--mono); font-size: 20px; font-weight: 700; color: var(--accent); }
+
+/* ── MODAL ── */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200; display: flex; align-items: flex-end; opacity: 0; pointer-events: none; transition: opacity .3s; }
+.modal-overlay.open { opacity: 1; pointer-events: all; }
+.modal { background: var(--bg2); border-radius: var(--radius) var(--radius) 0 0; padding: 20px; width: 100%; max-height: 80dvh; overflow-y: auto; transform: translateY(100%); transition: transform .3s; }
+.modal-overlay.open .modal { transform: translateY(0); }
+.modal-handle { width: 40px; height: 4px; background: var(--border2); border-radius: 2px; margin: 0 auto 20px; }
+.modal-title { font-size: 17px; font-weight: 700; margin-bottom: 20px; }
+
+/* ── FEEDBACK TOAST ── */
+.toast { position: fixed; top: calc(var(--safe-top) + 80px); left: 50%; transform: translateX(-50%) translateY(-20px); background: var(--bg2); border: 1px solid var(--border2); border-radius: 30px; padding: 10px 20px; font-size: 13px; font-weight: 600; z-index: 300; opacity: 0; transition: all .3s; white-space: nowrap; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── DETAIL ROW ── */
+.detail-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.detail-row:last-child { border-bottom: none; }
+.detail-label { font-size: 12px; color: var(--text3); }
+.detail-val { font-size: 13px; font-weight: 500; font-family: var(--mono); }
+
+/* ── SECTION TITLE ── */
+.section-title { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; padding: 0 16px; margin: 16px 0 8px; }
+
+/* ── EMPTY STATE ── */
+.empty { text-align: center; padding: 40px 20px; color: var(--text3); }
+.empty svg { width: 48px; height: 48px; margin-bottom: 12px; opacity: 0.4; }
+.empty p { font-size: 14px; }
+
+/* ── TRANSITIONS ── */
+.fade-in { animation: fadeIn .3s ease; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 0; }
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- ════ LOGIN ════ -->
+<div id="login-screen" class="screen active screen-no-nav login-screen">
+  <div class="login-logo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+  </div>
+  <h1 class="login-title">AsistenciaQR</h1>
+  <p class="login-sub">Gestión de asistencia con escaneo de códigos QR para docentes</p>
+  <div class="login-form">
+    <div class="form-group">
+      <label>Email docente</label>
+      <input type="email" id="login-email" placeholder="docente@escuela.edu" value="docente@escuela.edu">
+    </div>
+    <div class="form-group">
+      <label>Contraseña</label>
+      <input type="password" id="login-pass" placeholder="••••••••" value="1234">
+    </div>
+    <button class="btn btn-primary" onclick="doLogin()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
+      Ingresar
+    </button>
+    <p style="text-align:center;font-size:12px;color:var(--text3)">Demo: cualquier email / contraseña</p>
+  </div>
+</div>
+
+<!-- ════ HOME ════ -->
+<div id="home-screen" class="screen">
+  <div class="header">
+    <div class="header-row">
+      <div>
+        <h1>Panel de Clase</h1>
+        <div class="sub" id="header-date">—</div>
+      </div>
+      <div id="class-badge"></div>
+    </div>
+  </div>
+  <div class="scroll-area">
+
+    <!-- Sin clase activa -->
+    <div id="no-class-view">
+      <div style="padding:20px 16px 0">
+        <button class="btn btn-primary" onclick="startClass()" style="margin-bottom:12px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16"/></svg>
+          Iniciar Clase
+        </button>
+      </div>
+      <div class="section-title">Alumnos registrados</div>
+      <div class="card" id="student-list-home" style="padding:0"></div>
+    </div>
+
+    <!-- Con clase activa -->
+    <div id="active-class-view" style="display:none">
+      <div class="class-banner">
+        <div class="class-banner-info">
+          <div class="class-banner-title">Clase en curso</div>
+          <div class="class-banner-time" id="class-start-info">—</div>
+        </div>
+        <div class="timer" id="class-timer">00:00</div>
+      </div>
+      <div class="stat-grid">
+        <div class="stat-box">
+          <div class="stat-num" id="cnt-present" style="color:var(--green)">0</div>
+          <div class="stat-lbl">Presentes</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num" id="cnt-late" style="color:var(--yellow)">0</div>
+          <div class="stat-lbl">Tarde</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num" id="cnt-absent" style="color:var(--red)">0</div>
+          <div class="stat-lbl">Ausentes</div>
+        </div>
+      </div>
+      <div class="section-title">Registrados en esta clase</div>
+      <div class="card" id="scanned-list" style="padding:0">
+        <div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9a2 2 0 012-2h14a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path d="M9 3h6"/></svg><p>Aún no hay alumnos escaneados</p></div>
+      </div>
+      <div class="section-title">Sin registrar</div>
+      <div class="card" id="pending-list" style="padding:0"></div>
+      <div class="btn-group">
+        <button class="btn btn-danger" onclick="finishClass()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+          Finalizar Clase
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ════ SCANNER ════ -->
+<div id="scan-screen" class="screen">
+  <div class="header">
+    <div class="header-row">
+      <h1>Escanear QR</h1>
+      <div id="scan-class-badge"></div>
+    </div>
+  </div>
+  <div style="padding:16px">
+    <div id="qr-reader"></div>
+  </div>
+  <div id="scan-result-area" style="display:none"></div>
+  <div id="no-class-scan-msg" style="display:none;padding:20px;text-align:center">
+    <div class="card" style="margin:0">
+      <p style="color:var(--yellow);font-weight:600;margin-bottom:8px">⚠️ No hay clase activa</p>
+      <p style="font-size:13px;color:var(--text2)">Inicia una clase desde el Panel antes de escanear.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ════ ALUMNOS / QR ════ -->
+<div id="students-screen" class="screen">
+  <div class="header">
+    <div class="header-row">
+      <h1>Alumnos</h1>
+      <button class="badge blue" onclick="openAddStudent()">+ Agregar</button>
+    </div>
+  </div>
+  <div class="scroll-area">
+    <div class="section-title">Lista de alumnos</div>
+    <div class="card" id="students-full-list" style="padding:0"></div>
+    <div style="height:16px"></div>
+  </div>
+</div>
+
+<!-- ════ ESTADÍSTICAS ════ -->
+<div id="stats-screen" class="screen">
+  <div class="header">
+    <h1>Estadísticas</h1>
+  </div>
+  <div class="scroll-area">
+    <div class="filter-row" id="month-filters"></div>
+    <div class="stat-grid" style="margin-bottom:0">
+      <div class="stat-box">
+        <div class="stat-num" id="stats-present" style="color:var(--green)">0</div>
+        <div class="stat-lbl">Presentes</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-num" id="stats-late" style="color:var(--yellow)">0</div>
+        <div class="stat-lbl">Tardanzas</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-num" id="stats-absent" style="color:var(--red)">0</div>
+        <div class="stat-lbl">Ausencias</div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:12px">Distribución por alumno</div>
+      <div class="chart-wrap"><canvas id="bar-chart"></canvas></div>
+    </div>
+    <div class="card">
+      <div style="font-size:13px;font-weight:600;margin-bottom:12px">Resumen general</div>
+      <div class="chart-wrap" style="height:160px"><canvas id="pie-chart"></canvas></div>
+    </div>
+    <div class="section-title">Detalle por alumno</div>
+    <div id="stats-detail"></div>
+    <div style="height:16px"></div>
+  </div>
+</div>
+
+<!-- ════ BOTTOM NAV ════ -->
+<nav class="bottom-nav" id="bottom-nav" style="display:none">
+  <button class="nav-btn active" id="nav-home" onclick="showScreen('home')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+    Panel
+  </button>
+  <button class="nav-btn nav-scan" id="nav-scan" onclick="showScreen('scan')">
+    <div class="nav-inner">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>
+      Escanear
+    </div>
+  </button>
+  <button class="nav-btn" id="nav-students" onclick="showScreen('students')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+    Alumnos
+  </button>
+  <button class="nav-btn" id="nav-stats" onclick="showScreen('stats')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+    Stats
+  </button>
+</nav>
+
+<!-- ════ MODALS ════ -->
+
+<!-- Modal: detalle alumno -->
+<div class="modal-overlay" id="modal-student">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modal-student-name">Alumno</div>
+    <div id="modal-student-body"></div>
+    <div style="height:16px"></div>
+    <button class="btn btn-ghost" onclick="closeModal('modal-student')">Cerrar</button>
+  </div>
+</div>
+
+<!-- Modal: agregar alumno -->
+<div class="modal-overlay" id="modal-add-student">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Nuevo Alumno</div>
+    <div class="form-group">
+      <label>Nombre completo</label>
+      <input type="text" id="new-student-name" placeholder="Ej: María García">
+    </div>
+    <div class="form-group">
+      <label>ID / Legajo</label>
+      <input type="text" id="new-student-id" placeholder="Ej: 2024-001">
+    </div>
+    <div style="height:8px"></div>
+    <button class="btn btn-primary" onclick="addStudent()" style="margin-bottom:10px">Guardar y generar QR</button>
+    <button class="btn btn-ghost" onclick="closeModal('modal-add-student')">Cancelar</button>
+  </div>
+</div>
+
+<!-- Modal: ver QR de alumno -->
+<div class="modal-overlay" id="modal-qr">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modal-qr-title">Código QR</div>
+    <div class="qr-canvas-wrap"><canvas id="qr-canvas"></canvas></div>
+    <div style="text-align:center;margin-bottom:16px">
+      <div style="font-size:13px;color:var(--text3);margin-bottom:4px" id="modal-qr-id"></div>
+    </div>
+    <button class="btn btn-primary" onclick="downloadQR()" style="margin-bottom:10px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+      Descargar QR
+    </button>
+    <button class="btn btn-ghost" onclick="closeModal('modal-qr')">Cerrar</button>
+  </div>
+</div>
+
+<!-- Modal: observaciones -->
+<div class="modal-overlay" id="modal-obs">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Observaciones</div>
+    <div class="modal-title" id="modal-obs-name" style="font-size:14px;font-weight:400;color:var(--text2);margin-top:-12px;margin-bottom:16px"></div>
+    <div class="form-group">
+      <label>Entrega</label>
+      <div style="display:flex;gap:8px">
+        <button class="btn" id="obs-delivered-yes" onclick="setDelivery(true)" style="flex:1;padding:10px">✓ Entregó</button>
+        <button class="btn" id="obs-delivered-no" onclick="setDelivery(false)" style="flex:1;padding:10px">✗ No entregó</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Observaciones</label>
+      <textarea id="obs-text" placeholder="Notas sobre el alumno..."></textarea>
+    </div>
+    <button class="btn btn-primary" onclick="saveObservation()" style="margin-bottom:10px">Guardar</button>
+    <button class="btn btn-ghost" onclick="closeModal('modal-obs')">Cancelar</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
+const APP = {
+  user: null,
+  classActive: false,
+  classStart: null,
+  toleranceMs: 15 * 60 * 1000,
+  timerInterval: null,
+  scannedThisClass: {},
+  currentQRStudent: null,
+  currentObsRecord: null,
+  currentObsDelivery: null,
+  statsFilter: 'all',
+  scanner: null,
+  scannerRunning: false,
+  charts: {},
+};
+
+// ─── DEMO DATA ───
+let students = [
+  { id: 'STU-001', name: 'Lucas Ramírez', color: '#38bdf8' },
+  { id: 'STU-002', name: 'Valentina Gómez', color: '#a78bfa' },
+  { id: 'STU-003', name: 'Mateo Fernández', color: '#22c55e' },
+  { id: 'STU-004', name: 'Isabella López', color: '#f59e0b' },
+  { id: 'STU-005', name: 'Sebastián Torres', color: '#ef4444' },
+  { id: 'STU-006', name: 'Camila Martínez', color: '#ec4899' },
+];
+
+// attendance records: { studentId, name, date, time, status, delivered, observations }
+let attendance = loadFromStorage('att_records') || generateDemoData();
+
+// ─── STORAGE ───
+function saveToStorage(key, data) {
+  try { localStorage.setItem(key, JSON.stringify(data)); } catch(e) {}
+}
+function loadFromStorage(key) {
+  try { const d = localStorage.getItem(key); return d ? JSON.parse(d) : null; } catch(e) { return null; }
+}
+
+function generateDemoData() {
+  const records = [];
+  const now = new Date();
+  const statuses = ['Presente', 'Presente', 'Tarde', 'Presente', 'Ausente'];
+  for (let d = 30; d >= 1; d -= 3) {
+    const date = new Date(now); date.setDate(date.getDate() - d);
+    const dateStr = date.toISOString().split('T')[0];
+    students.forEach((s, i) => {
+      const status = statuses[(i + Math.floor(d/3)) % statuses.length];
+      records.push({
+        id: `${dateStr}-${s.id}`,
+        studentId: s.id, name: s.name,
+        date: dateStr,
+        time: status === 'Ausente' ? '—' : `${8 + Math.floor(Math.random()*2)}:${String(Math.floor(Math.random()*60)).padStart(2,'0')}`,
+        status,
+        delivered: status !== 'Ausente' ? Math.random() > 0.3 : false,
+        observations: ''
+      });
+    });
+  }
+  return records;
+}
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('header-date').textContent = new Date().toLocaleDateString('es-AR', {weekday:'long',day:'numeric',month:'long'});
+  students = loadFromStorage('att_students') || students;
+});
+
+// ═══════════════════════════════════════════════
+// AUTH
+// ═══════════════════════════════════════════════
+function doLogin() {
+  const email = document.getElementById('login-email').value;
+  const pass = document.getElementById('login-pass').value;
+  if (!email || !pass) { showToast('Ingresa email y contraseña'); return; }
+  APP.user = { email, name: email.split('@')[0] };
+  document.getElementById('login-screen').classList.remove('active');
+  document.getElementById('bottom-nav').style.display = 'flex';
+  showScreen('home');
+  showToast('Bienvenido/a ' + APP.user.name);
+}
+
+// ═══════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(name + '-screen').classList.add('active');
+  const navBtn = document.getElementById('nav-' + name);
+  if (navBtn) navBtn.classList.add('active');
+
+  if (name === 'home') renderHome();
+  if (name === 'scan') initScanner();
+  if (name === 'students') renderStudents();
+  if (name === 'stats') renderStats();
+  if (name !== 'scan') stopScanner();
+}
+
+// ═══════════════════════════════════════════════
+// CLASS MANAGEMENT
+// ═══════════════════════════════════════════════
+function startClass() {
+  APP.classActive = true;
+  APP.classStart = new Date();
+  APP.scannedThisClass = {};
+  document.getElementById('no-class-view').style.display = 'none';
+  document.getElementById('active-class-view').style.display = '';
+  updateClassBadge();
+  startTimer();
+  document.getElementById('class-start-info').textContent =
+    'Inicio: ' + APP.classStart.toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'}) +
+    ' · Tolerancia hasta ' + new Date(APP.classStart.getTime() + APP.toleranceMs).toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'});
+  renderHome();
+  showToast('Clase iniciada ✓');
+}
+
+function finishClass() {
+  if (!APP.classActive) return;
+  const date = APP.classStart.toISOString().split('T')[0];
+  // mark absents
+  students.forEach(s => {
+    if (!APP.scannedThisClass[s.id]) {
+      attendance.push({
+        id: `${date}-${s.id}-${Date.now()}`,
+        studentId: s.id, name: s.name,
+        date, time: '—', status: 'Ausente',
+        delivered: false, observations: ''
+      });
+    }
+  });
+  saveToStorage('att_records', attendance);
+  APP.classActive = false;
+  APP.classStart = null;
+  clearInterval(APP.timerInterval);
+  document.getElementById('no-class-view').style.display = '';
+  document.getElementById('active-class-view').style.display = 'none';
+  updateClassBadge();
+  renderHome();
+  showToast('Clase finalizada. Ausentes registrados.');
+}
+
+function startTimer() {
+  clearInterval(APP.timerInterval);
+  APP.timerInterval = setInterval(() => {
+    if (!APP.classStart) return;
+    const elapsed = Date.now() - APP.classStart.getTime();
+    const m = Math.floor(elapsed / 60000);
+    const s = Math.floor((elapsed % 60000) / 1000);
+    document.getElementById('class-timer').textContent =
+      String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+    updateCounts();
+  }, 1000);
+}
+
+function updateClassBadge() {
+  const el = document.getElementById('class-badge');
+  const el2 = document.getElementById('scan-class-badge');
+  if (APP.classActive) {
+    const html = '<span class="badge green"><span class="dot"></span>En curso</span>';
+    if (el) el.innerHTML = html;
+    if (el2) el2.innerHTML = html;
+  } else {
+    if (el) el.innerHTML = '';
+    if (el2) el2.innerHTML = '<span class="badge red">Sin clase</span>';
+  }
+}
+
+function updateCounts() {
+  const scanned = Object.values(APP.scannedThisClass);
+  document.getElementById('cnt-present').textContent = scanned.filter(r=>r.status==='Presente').length;
+  document.getElementById('cnt-late').textContent = scanned.filter(r=>r.status==='Tarde').length;
+  document.getElementById('cnt-absent').textContent = students.length - scanned.length;
+}
+
+// ═══════════════════════════════════════════════
+// RENDER HOME
+// ═══════════════════════════════════════════════
+function renderHome() {
+  updateClassBadge();
+  if (!APP.classActive) {
+    const el = document.getElementById('student-list-home');
+    el.innerHTML = students.map(s => studentRow(s, null)).join('');
+    return;
+  }
+  updateCounts();
+  // scanned
+  const scannedEl = document.getElementById('scanned-list');
+  const scanned = Object.values(APP.scannedThisClass);
+  if (scanned.length === 0) {
+    scannedEl.innerHTML = '<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9a2 2 0 012-2h14a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/></svg><p>Aún no hay alumnos escaneados</p></div>';
+  } else {
+    scannedEl.innerHTML = scanned.map(r => {
+      const s = students.find(x=>x.id===r.studentId) || {};
+      return studentRow(s, r);
+    }).join('');
+  }
+  // pending
+  const pendingEl = document.getElementById('pending-list');
+  const pending = students.filter(s => !APP.scannedThisClass[s.id]);
+  pendingEl.innerHTML = pending.length === 0
+    ? '<div class="student-item"><span style="color:var(--green);font-size:13px">✓ Todos los alumnos escaneados</span></div>'
+    : pending.map(s => studentRow(s, null)).join('');
+}
+
+function studentRow(s, record) {
+  const initials = (s.name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  const statusBadge = record
+    ? `<span class="badge ${record.status==='Presente'?'green':record.status==='Tarde'?'yellow':'red'}">${record.status}</span>`
+    : '<span style="font-size:11px;color:var(--text3)">—</span>';
+  const time = record && record.time !== '—' ? record.time : '';
+  return `<div class="student-item" onclick="openStudentModal('${s.id}')">
+    <div class="avatar" style="background:${s.color}22;color:${s.color}">${initials}</div>
+    <div class="student-info">
+      <div class="student-name">${s.name}</div>
+      <div class="student-id">${s.id}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+      ${statusBadge}
+      <div class="student-time">${time}</div>
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════
+// SCANNER
+// ═══════════════════════════════════════════════
+function initScanner() {
+  const noClassMsg = document.getElementById('no-class-scan-msg');
+  const scanArea = document.getElementById('qr-reader');
+  const resultArea = document.getElementById('scan-result-area');
+  updateClassBadge();
+
+  if (!APP.classActive) {
+    noClassMsg.style.display = '';
+    scanArea.style.display = 'none';
+    resultArea.style.display = 'none';
+    return;
+  }
+  noClassMsg.style.display = 'none';
+  scanArea.style.display = '';
+
+  if (APP.scannerRunning) return;
+
+  APP.scanner = new Html5Qrcode('qr-reader');
+  APP.scanner.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: { width: 250, height: 250 } },
+    (decodedText) => onQRScan(decodedText),
+    () => {}
+  ).then(() => { APP.scannerRunning = true; }).catch(err => {
+    scanArea.innerHTML = `<div class="card" style="text-align:center;color:var(--yellow)">
+      <p>⚠️ No se pudo acceder a la cámara</p>
+      <p style="font-size:12px;color:var(--text3);margin-top:8px">${err}</p>
+      <button class="btn btn-ghost" onclick="testScanDemo()" style="margin-top:12px">Modo demo (sin cámara)</button>
+    </div>`;
+  });
+}
+
+function stopScanner() {
+  if (APP.scanner && APP.scannerRunning) {
+    APP.scanner.stop().catch(()=>{});
+    APP.scannerRunning = false;
+  }
+}
+
+function testScanDemo() {
+  const avail = students.filter(s => !APP.scannedThisClass[s.id]);
+  if (avail.length === 0) { showToast('Todos ya fueron escaneados'); return; }
+  onQRScan('QR_' + avail[0].id);
+}
+
+function onQRScan(raw) {
+  if (!APP.classActive) { showToast('No hay clase activa'); return; }
+  // parse: QR_STU-001
+  const studentId = raw.startsWith('QR_') ? raw.replace('QR_', '') : raw;
+  const student = students.find(s => s.id === studentId);
+
+  if (!student) {
+    showScanResult('err', '✗', 'QR desconocido', raw);
+    vibrateAndBeep('err');
+    return;
+  }
+  if (APP.scannedThisClass[studentId]) {
+    showScanResult('dup', '⚠️', student.name, 'Ya registrado en esta clase');
+    vibrateAndBeep('dup');
+    return;
+  }
+
+  const now = new Date();
+  const elapsed = now.getTime() - APP.classStart.getTime();
+  const status = elapsed <= APP.toleranceMs ? 'Presente' : 'Tarde';
+  const timeStr = now.toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'});
+  const dateStr = now.toISOString().split('T')[0];
+
+  const record = {
+    id: `${dateStr}-${studentId}`,
+    studentId, name: student.name,
+    date: dateStr, time: timeStr, status,
+    delivered: false, observations: ''
+  };
+
+  APP.scannedThisClass[studentId] = record;
+  attendance.push(record);
+  saveToStorage('att_records', attendance);
+
+  showScanResult('ok',
+    status === 'Presente' ? '✓' : '⏱',
+    student.name,
+    status + ' · ' + timeStr
+  );
+  vibrateAndBeep('ok');
+  updateCounts();
+}
+
+function showScanResult(type, icon, name, status) {
+  const el = document.getElementById('scan-result-area');
+  el.style.display = '';
+  el.innerHTML = `<div class="scan-result ${type} fade-in">
+    <div class="scan-result-icon">${icon}</div>
+    <div class="scan-result-name">${name}</div>
+    <div class="scan-result-status">${status}</div>
+  </div>`;
+  setTimeout(() => { el.style.display = 'none'; }, 3000);
+}
+
+function vibrateAndBeep(type) {
+  try { navigator.vibrate && navigator.vibrate(type === 'ok' ? [50] : [50,50,50]); } catch(e){}
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.frequency.value = type === 'ok' ? 880 : type === 'dup' ? 440 : 220;
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    osc.start(); osc.stop(ctx.currentTime + 0.3);
+  } catch(e){}
+}
+
+// ═══════════════════════════════════════════════
+// STUDENTS SCREEN
+// ═══════════════════════════════════════════════
+function renderStudents() {
+  const el = document.getElementById('students-full-list');
+  el.innerHTML = students.map(s => {
+    const initials = s.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    return `<div class="student-item">
+      <div class="avatar" style="background:${s.color}22;color:${s.color}">${initials}</div>
+      <div class="student-info">
+        <div class="student-name">${s.name}</div>
+        <div class="student-id">${s.id}</div>
+      </div>
+      <button class="badge blue" onclick="showQR('${s.id}')">Ver QR</button>
+    </div>`;
+  }).join('');
+}
+
+function openAddStudent() { openModal('modal-add-student'); }
+
+function addStudent() {
+  const name = document.getElementById('new-student-name').value.trim();
+  const id = document.getElementById('new-student-id').value.trim();
+  if (!name || !id) { showToast('Completa nombre e ID'); return; }
+  if (students.find(s => s.id === id)) { showToast('ID ya existe'); return; }
+  const colors = ['#38bdf8','#a78bfa','#22c55e','#f59e0b','#ef4444','#ec4899','#14b8a6','#f97316'];
+  const color = colors[students.length % colors.length];
+  students.push({ id, name, color });
+  saveToStorage('att_students', students);
+  closeModal('modal-add-student');
+  document.getElementById('new-student-name').value = '';
+  document.getElementById('new-student-id').value = '';
+  renderStudents();
+  showQR(id);
+  showToast('Alumno agregado ✓');
+}
+
+function showQR(studentId) {
+  const s = students.find(x => x.id === studentId);
+  if (!s) return;
+  APP.currentQRStudent = s;
+  document.getElementById('modal-qr-title').textContent = s.name;
+  document.getElementById('modal-qr-id').textContent = s.id;
+  openModal('modal-qr');
+  setTimeout(() => {
+    const canvas = document.getElementById('qr-canvas');
+    QRCode.toCanvas(canvas, 'QR_' + s.id, {
+      width: 220, margin: 2,
+      color: { dark: '#0f172a', light: '#ffffff' }
+    }, err => { if(err) console.error(err); });
+  }, 100);
+}
+
+function downloadQR() {
+  const canvas = document.getElementById('qr-canvas');
+  const a = document.createElement('a');
+  a.download = `QR_${APP.currentQRStudent?.id || 'alumno'}.png`;
+  a.href = canvas.toDataURL();
+  a.click();
+  showToast('QR descargado');
+}
+
+// ═══════════════════════════════════════════════
+// STATS
+// ═══════════════════════════════════════════════
+function renderStats() {
+  const now = new Date();
+  const months = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({ label: d.toLocaleDateString('es-AR',{month:'short',year:'2-digit'}), value: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}` });
+  }
+
+  const filtersEl = document.getElementById('month-filters');
+  filtersEl.innerHTML = '<button class="filter-chip active" onclick="setStatsFilter(this,\'all\')">Todo</button>' +
+    months.map(m => `<button class="filter-chip" onclick="setStatsFilter(this,'${m.value}')">${m.label}</button>`).join('');
+
+  drawStats();
+}
+
+function setStatsFilter(btn, val) {
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  APP.statsFilter = val;
+  drawStats();
+}
+
+function getFilteredRecords() {
+  if (APP.statsFilter === 'all') return attendance;
+  return attendance.filter(r => r.date.startsWith(APP.statsFilter));
+}
+
+function drawStats() {
+  const recs = getFilteredRecords();
+  const present = recs.filter(r=>r.status==='Presente').length;
+  const late = recs.filter(r=>r.status==='Tarde').length;
+  const absent = recs.filter(r=>r.status==='Ausente').length;
+  document.getElementById('stats-present').textContent = present;
+  document.getElementById('stats-late').textContent = late;
+  document.getElementById('stats-absent').textContent = absent;
+
+  // per-student data
+  const perStudent = students.map(s => {
+    const sRecs = recs.filter(r => r.studentId === s.id);
+    return {
+      name: s.name.split(' ')[0],
+      color: s.color,
+      present: sRecs.filter(r=>r.status==='Presente').length,
+      late: sRecs.filter(r=>r.status==='Tarde').length,
+      absent: sRecs.filter(r=>r.status==='Ausente').length,
+      total: sRecs.length,
+    };
+  });
+
+  // Bar chart
+  if (APP.charts.bar) APP.charts.bar.destroy();
+  const barCtx = document.getElementById('bar-chart').getContext('2d');
+  APP.charts.bar = new Chart(barCtx, {
+    type: 'bar',
+    data: {
+      labels: perStudent.map(s=>s.name),
+      datasets: [
+        { label:'Presente', data: perStudent.map(s=>s.present), backgroundColor:'#22c55e44', borderColor:'#22c55e', borderWidth:1.5, borderRadius:4 },
+        { label:'Tarde', data: perStudent.map(s=>s.late), backgroundColor:'#f59e0b44', borderColor:'#f59e0b', borderWidth:1.5, borderRadius:4 },
+        { label:'Ausente', data: perStudent.map(s=>s.absent), backgroundColor:'#ef444444', borderColor:'#ef4444', borderWidth:1.5, borderRadius:4 },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ position:'bottom', labels:{ color:'#94a3b8', font:{size:11}, boxWidth:12, padding:12 } } },
+      scales:{
+        x:{ ticks:{color:'#64748b',font:{size:10}}, grid:{color:'rgba(148,163,184,0.08)'} },
+        y:{ ticks:{color:'#64748b',font:{size:10}}, grid:{color:'rgba(148,163,184,0.08)'} }
+      }
+    }
+  });
+
+  // Pie chart
+  if (APP.charts.pie) APP.charts.pie.destroy();
+  const pieCtx = document.getElementById('pie-chart').getContext('2d');
+  APP.charts.pie = new Chart(pieCtx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Presente','Tarde','Ausente'],
+      datasets:[{ data:[present,late,absent], backgroundColor:['#22c55e55','#f59e0b55','#ef444455'], borderColor:['#22c55e','#f59e0b','#ef4444'], borderWidth:2 }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ position:'bottom', labels:{ color:'#94a3b8', font:{size:11}, boxWidth:12 } } }
+    }
+  });
+
+  // Detail
+  const detailEl = document.getElementById('stats-detail');
+  detailEl.innerHTML = perStudent.map(s => {
+    const pct = s.total ? Math.round(s.present/s.total*100) : 0;
+    const initials = s.name.slice(0,2).toUpperCase();
+    return `<div class="card card-sm" style="margin:0 16px 10px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+        <div class="avatar" style="background:${s.color}22;color:${s.color};width:32px;height:32px;font-size:11px">${initials}</div>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:600">${students.find(x=>x.name.startsWith(s.name))?.name||s.name}</div>
+          <div style="font-size:11px;color:var(--text3)">${pct}% asistencia</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <div style="flex:1;text-align:center;padding:8px;background:var(--green-bg);border-radius:8px">
+          <div style="font-size:18px;font-weight:700;color:var(--green);font-family:var(--mono)">${s.present}</div>
+          <div style="font-size:9px;color:var(--green);text-transform:uppercase;letter-spacing:.5px">Pres.</div>
+        </div>
+        <div style="flex:1;text-align:center;padding:8px;background:var(--yellow-bg);border-radius:8px">
+          <div style="font-size:18px;font-weight:700;color:var(--yellow);font-family:var(--mono)">${s.late}</div>
+          <div style="font-size:9px;color:var(--yellow);text-transform:uppercase;letter-spacing:.5px">Tarde</div>
+        </div>
+        <div style="flex:1;text-align:center;padding:8px;background:var(--red-bg);border-radius:8px">
+          <div style="font-size:18px;font-weight:700;color:var(--red);font-family:var(--mono)">${s.absent}</div>
+          <div style="font-size:9px;color:var(--red);text-transform:uppercase;letter-spacing:.5px">Aus.</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════
+// MODALS
+// ═══════════════════════════════════════════════
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
+});
+
+function openStudentModal(studentId) {
+  const s = students.find(x => x.id === studentId);
+  if (!s) return;
+  document.getElementById('modal-student-name').textContent = s.name;
+
+  const recs = attendance.filter(r => r.studentId === studentId).slice(-10).reverse();
+  const present = attendance.filter(r=>r.studentId===studentId&&r.status==='Presente').length;
+  const late = attendance.filter(r=>r.studentId===studentId&&r.status==='Tarde').length;
+  const absent = attendance.filter(r=>r.studentId===studentId&&r.status==='Ausente').length;
+
+  document.getElementById('modal-student-body').innerHTML = `
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <div style="flex:1;text-align:center;padding:10px;background:var(--green-bg);border-radius:10px">
+        <div style="font-size:22px;font-weight:700;color:var(--green);font-family:var(--mono)">${present}</div>
+        <div style="font-size:10px;color:var(--green)">PRESENTE</div>
+      </div>
+      <div style="flex:1;text-align:center;padding:10px;background:var(--yellow-bg);border-radius:10px">
+        <div style="font-size:22px;font-weight:700;color:var(--yellow);font-family:var(--mono)">${late}</div>
+        <div style="font-size:10px;color:var(--yellow)">TARDE</div>
+      </div>
+      <div style="flex:1;text-align:center;padding:10px;background:var(--red-bg);border-radius:10px">
+        <div style="font-size:22px;font-weight:700;color:var(--red);font-family:var(--mono)">${absent}</div>
+        <div style="font-size:10px;color:var(--red)">AUSENTE</div>
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Últimas clases</div>
+    ${recs.map(r => `
+      <div class="detail-row">
+        <div>
+          <div style="font-size:13px;font-weight:500">${r.date}</div>
+          <div style="font-size:11px;color:var(--text3)">Entrega: ${r.delivered?'✓ Sí':'✗ No'}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+          <span class="badge ${r.status==='Presente'?'green':r.status==='Tarde'?'yellow':'red'}">${r.status}</span>
+          <span style="font-size:11px;color:var(--text3);font-family:var(--mono)">${r.time}</span>
+        </div>
+      </div>
+    `).join('')}
+    <div style="margin-top:16px">
+      <button class="btn btn-ghost" onclick="openObsModal('${studentId}')">Agregar observación</button>
+    </div>
+    <div style="margin-top:8px">
+      <button class="btn btn-ghost" onclick="showQR('${studentId}');closeModal('modal-student')">Ver QR</button>
+    </div>
+  `;
+  openModal('modal-student');
+}
+
+function openObsModal(studentId) {
+  const s = students.find(x => x.id === studentId);
+  if (!s) return;
+  APP.currentObsRecord = studentId;
+  APP.currentObsDelivery = null;
+  document.getElementById('modal-obs-name').textContent = s.name;
+  document.getElementById('obs-text').value = '';
+  document.getElementById('obs-delivered-yes').style.background = 'var(--surface2)';
+  document.getElementById('obs-delivered-no').style.background = 'var(--surface2)';
+  closeModal('modal-student');
+  openModal('modal-obs');
+}
+
+function setDelivery(val) {
+  APP.currentObsDelivery = val;
+  document.getElementById('obs-delivered-yes').style.background = val ? 'var(--green-bg)' : 'var(--surface2)';
+  document.getElementById('obs-delivered-no').style.background = !val ? 'var(--red-bg)' : 'var(--surface2)';
+  document.getElementById('obs-delivered-yes').style.color = val ? 'var(--green)' : 'var(--text)';
+  document.getElementById('obs-delivered-no').style.color = !val ? 'var(--red)' : 'var(--text)';
+}
+
+function saveObservation() {
+  const text = document.getElementById('obs-text').value.trim();
+  const today = new Date().toISOString().split('T')[0];
+  // update most recent record for this student
+  const idx = attendance.map((r,i)=>({...r,i})).filter(r=>r.studentId===APP.currentObsRecord)
+    .sort((a,b)=>b.date.localeCompare(a.date))[0]?.i;
+  if (idx !== undefined) {
+    if (APP.currentObsDelivery !== null) attendance[idx].delivered = APP.currentObsDelivery;
+    if (text) attendance[idx].observations = text;
+    saveToStorage('att_records', attendance);
+  }
+  closeModal('modal-obs');
+  showToast('Observación guardada ✓');
+}
+
+// ═══════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════
+let toastTimer;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ═══════════════════════════════════════════════
+// SERVICE WORKER (PWA)
+// ═══════════════════════════════════════════════
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+</script>
+</body>
+</html>
