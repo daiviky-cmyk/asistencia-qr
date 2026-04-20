@@ -319,7 +319,10 @@ label { font-size: 12px; color: var(--text3); margin-bottom: 6px; display: block
 <!-- ════ ESTADÍSTICAS ════ -->
 <div id="stats-screen" class="screen">
   <div class="header">
-    <h1>Estadísticas</h1>
+    <div class="header-row">
+      <h1>Estadísticas</h1>
+      <button class="badge blue" id="sync-btn" onclick="syncFromSheets()">↻ Sync</button>
+    </div>
   </div>
   <div class="scroll-area">
     <div class="filter-row" id="month-filters"></div>
@@ -448,6 +451,56 @@ label { font-size: 12px; color: var(--text3); margin-bottom: 6px; display: block
 
 <script>
 // ═══════════════════════════════════════════════
+// GOOGLE SHEETS CONFIG
+// ═══════════════════════════════════════════════
+const SHEETS_API = 'https://script.google.com/macros/s/AKfycbwE3ZfgxGA8drFqYUYphgMLYBEJr3d_TPEn6a1Ca_7Pw6J-OyjxucVQDGpp50TuhzuH4g/exec';
+
+async function sheetsPost(record) {
+  try {
+    await fetch(SHEETS_API, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(record)
+    });
+    return true;
+  } catch(e) {
+    queueOffline(record);
+    return false;
+  }
+}
+
+async function sheetsGet() {
+  try {
+    const res = await fetch(SHEETS_API + '?t=' + Date.now());
+    if (!res.ok) return null;
+    return await res.json();
+  } catch(e) { return null; }
+}
+
+function queueOffline(record) {
+  const q = JSON.parse(localStorage.getItem('att_offline') || '[]');
+  q.push(record);
+  localStorage.setItem('att_offline', JSON.stringify(q));
+}
+
+async function syncOfflineQueue() {
+  const q = JSON.parse(localStorage.getItem('att_offline') || '[]');
+  if (!q.length) return 0;
+  let sent = 0;
+  for (const r of q) {
+    const ok = await sheetsPost(r);
+    if (ok) sent++;
+  }
+  if (sent === q.length) localStorage.removeItem('att_offline');
+  return sent;
+}
+
+window.addEventListener('online', () => {
+  syncOfflineQueue().then(n => { if(n>0) showToast(n + ' registros sincronizados ✓'); });
+});
+
+// ═══════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════
 const APP = {
@@ -464,7 +517,9 @@ const APP = {
   scanner: null,
   scannerRunning: false,
   charts: {},
+  sheetsData: null,
 };
+
 
 // ─── DEMO DATA ───
 let students = [
@@ -567,18 +622,15 @@ function startClass() {
   showToast('Clase iniciada ✓');
 }
 
-function finishClass() {
+async function finishClass() {
   if (!APP.classActive) return;
   const date = APP.classStart.toISOString().split('T')[0];
-  // mark absents
+  const absentRecords = [];
   students.forEach(s => {
     if (!APP.scannedThisClass[s.id]) {
-      attendance.push({
-        id: `${date}-${s.id}-${Date.now()}`,
-        studentId: s.id, name: s.name,
-        date, time: '—', status: 'Ausente',
-        delivered: false, observations: ''
-      });
+      const r = { id: `${date}-${s.id}-${Date.now()}`, studentId: s.id, name: s.name, date, time: '—', status: 'Ausente', delivered: false, observations: '' };
+      attendance.push(r);
+      absentRecords.push(r);
     }
   });
   saveToStorage('att_records', attendance);
@@ -589,7 +641,11 @@ function finishClass() {
   document.getElementById('active-class-view').style.display = 'none';
   updateClassBadge();
   renderHome();
-  showToast('Clase finalizada. Ausentes registrados.');
+  showToast('Guardando en Google Sheets...');
+  const allClassRecs = [...Object.values(APP.scannedThisClass), ...absentRecords];
+  let ok = 0;
+  for (const r of allClassRecs) { const sent = await sheetsPost(r); if(sent) ok++; }
+  showToast('Clase finalizada · ' + ok + '/' + allClassRecs.length + ' guardados en Sheets ✓');
 }
 
 function startTimer() {
@@ -1077,6 +1133,47 @@ function showToast(msg) {
   el.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ═══════════════════════════════════════════════
+// SYNC DESDE GOOGLE SHEETS
+// ═══════════════════════════════════════════════
+async function syncFromSheets() {
+  const btn = document.getElementById('sync-btn');
+  if (btn) btn.textContent = '↻ Cargando...';
+  showToast('Sincronizando con Google Sheets...');
+  const data = await sheetsGet();
+  if (data && Array.isArray(data) && data.length > 0) {
+    const remote = data.map(r => ({
+      id: (r['ID Alumno'] || '') + '-' + (r['Fecha'] || ''),
+      studentId: r['ID Alumno'] || '',
+      name: r['Nombre'] || '',
+      date: r['Fecha'] || '',
+      time: r['Hora'] || '',
+      status: r['Estado'] || '',
+      delivered: r['Entrega'] === 'Sí',
+      observations: r['Observaciones'] || ''
+    }));
+    // Merge: agregar solo los que no existen localmente
+    const localIds = new Set(attendance.map(r => r.studentId + '-' + r.date));
+    let added = 0;
+    remote.forEach(r => {
+      if (!localIds.has(r.studentId + '-' + r.date)) {
+        attendance.push(r);
+        added++;
+      }
+    });
+    if (added > 0) {
+      saveToStorage('att_records', attendance);
+      showToast(added + ' registros importados de Sheets ✓');
+    } else {
+      showToast('Todo sincronizado. Sin cambios nuevos.');
+    }
+    drawStats();
+  } else {
+    showToast('Sin conexión o Sheets vacío');
+  }
+  if (btn) btn.textContent = '↻ Sync';
 }
 
 // ═══════════════════════════════════════════════
