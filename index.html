@@ -3,1185 +3,1460 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="theme-color" content="#0f172a">
+<meta name="theme-color" content="#0D1117">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="AsistenciaQR">
+<meta name="apple-mobile-web-app-title" content="Assistant Day">
 <link rel="manifest" href="manifest.json">
-<title>AsistenciaQR</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<title>Assistant Day</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
+/* ── TOKENS ── */
 :root {
-  --bg: #0f172a;
-  --bg2: #1e293b;
-  --bg3: #263148;
-  --surface: #1e293b;
-  --surface2: #263148;
-  --border: rgba(148,163,184,0.12);
-  --border2: rgba(148,163,184,0.22);
-  --text: #f1f5f9;
-  --text2: #94a3b8;
-  --text3: #64748b;
-  --accent: #38bdf8;
-  --accent2: #0ea5e9;
-  --green: #22c55e;
-  --green-bg: rgba(34,197,94,0.12);
-  --yellow: #f59e0b;
-  --yellow-bg: rgba(245,158,11,0.12);
-  --red: #ef4444;
-  --red-bg: rgba(239,68,68,0.12);
-  --purple: #a78bfa;
-  --purple-bg: rgba(167,139,250,0.12);
-  --radius: 14px;
-  --radius-sm: 8px;
-  --font: 'DM Sans', sans-serif;
-  --mono: 'Space Mono', monospace;
-  --safe-top: env(safe-area-inset-top, 0px);
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --bg:       #0D1117;
+  --bg1:      #161B22;
+  --bg2:      #1C2333;
+  --bg3:      #21262D;
+  --line:     rgba(255,255,255,0.06);
+  --line2:    rgba(255,255,255,0.12);
+  --text:     #E6EDF3;
+  --text2:    #8B949E;
+  --text3:    #484F58;
+  --accent:   #58A6FF;
+  --accent2:  #1F6FEB;
+  --green:    #3FB950;
+  --green-bg: rgba(63,185,80,0.1);
+  --yellow:   #D29922;
+  --yellow-bg:rgba(210,153,34,0.1);
+  --red:      #F85149;
+  --red-bg:   rgba(248,81,73,0.1);
+  --purple:   #BC8CFF;
+  --purple-bg:rgba(188,140,255,0.1);
+  --orange:   #F0883E;
+  --r:        12px;
+  --r-sm:     8px;
+  --r-lg:     18px;
+  --font:     'Inter', sans-serif;
+  --head:     'Syne', sans-serif;
+  --safe-t:   env(safe-area-inset-top,0px);
+  --safe-b:   env(safe-area-inset-bottom,0px);
+  --nav-h:    72px;
 }
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{scroll-behavior:smooth}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100dvh;overflow-x:hidden;-webkit-font-smoothing:antialiased}
 
-* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100dvh; overflow-x: hidden; }
-html { scroll-behavior: smooth; }
+/* ── SCREENS ── */
+.screen{display:none;flex-direction:column;min-height:100dvh;padding-bottom:calc(var(--nav-h) + var(--safe-b))}
+.screen.active{display:flex}
+.screen-full{padding-bottom:0}
 
-/* ── LAYOUT ── */
-#app { display: flex; flex-direction: column; min-height: 100dvh; }
-.screen { display: none; flex-direction: column; flex: 1; padding-bottom: calc(80px + var(--safe-bottom)); }
-.screen.active { display: flex; }
-.screen-no-nav { padding-bottom: var(--safe-bottom); }
-
-/* ── HEADER ── */
-.header { padding: calc(var(--safe-top) + 16px) 20px 16px; background: var(--bg); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10; }
-.header-row { display: flex; align-items: center; justify-content: space-between; }
-.header h1 { font-size: 18px; font-weight: 600; letter-spacing: -0.3px; }
-.header .sub { font-size: 12px; color: var(--text3); font-family: var(--mono); margin-top: 2px; }
-.badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.5px; }
-.badge.green { background: var(--green-bg); color: var(--green); }
-.badge.yellow { background: var(--yellow-bg); color: var(--yellow); }
-.badge.red { background: var(--red-bg); color: var(--red); }
-.badge.blue { background: rgba(56,189,248,0.12); color: var(--accent); }
-.dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse 1.5s infinite; }
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+/* ── TOPBAR ── */
+.topbar{padding:calc(var(--safe-t) + 14px) 20px 14px;background:var(--bg);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:50;backdrop-filter:blur(12px)}
+.topbar-row{display:flex;align-items:center;gap:12px}
+.topbar-back{width:36px;height:36px;border-radius:50%;background:var(--bg2);border:1px solid var(--line2);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+.topbar-back svg{width:16px;height:16px;color:var(--text2)}
+.topbar-title{font-family:var(--head);font-size:17px;font-weight:700;letter-spacing:-0.2px;flex:1}
+.topbar-action{font-size:12px;font-weight:600;padding:6px 14px;border-radius:20px;border:none;cursor:pointer;transition:opacity .2s}
 
 /* ── BOTTOM NAV ── */
-.bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 100; background: var(--bg2); border-top: 1px solid var(--border); display: flex; padding: 8px 4px calc(8px + var(--safe-bottom)); }
-.nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; border: none; background: none; color: var(--text3); font-family: var(--font); font-size: 10px; font-weight: 500; cursor: pointer; border-radius: var(--radius-sm); transition: color .2s; }
-.nav-btn.active { color: var(--accent); }
-.nav-btn svg { width: 22px; height: 22px; }
-.nav-scan { flex: 1.4; }
-.nav-scan .nav-inner { background: var(--accent); border-radius: var(--radius); padding: 10px 16px; display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--bg); font-weight: 600; }
-.nav-scan svg { width: 24px; height: 24px; }
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:100;height:calc(var(--nav-h) + var(--safe-b));background:var(--bg1);border-top:1px solid var(--line);display:none;align-items:flex-start;padding:8px 4px 0}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 2px;border:none;background:none;color:var(--text3);font-family:var(--font);font-size:9px;font-weight:500;cursor:pointer;letter-spacing:0.2px;transition:color .2s}
+.nav-item.active{color:var(--accent)}
+.nav-item svg{width:21px;height:21px}
+.nav-item.nav-center{flex:1.3}
+.nav-scan-pill{background:var(--accent);border-radius:16px;padding:9px 18px;display:flex;flex-direction:column;align-items:center;gap:2px;color:#fff;font-weight:700;font-size:9px}
+.nav-scan-pill svg{width:22px;height:22px}
 
-/* ── CARDS ── */
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin: 0 16px 12px; }
-.card-sm { padding: 12px 14px; }
-.scroll-area { flex: 1; overflow-y: auto; padding-top: 12px; padding-bottom: 8px; -webkit-overflow-scrolling: touch; }
+/* ── HOME ── */
+.home-hero{padding:calc(var(--safe-t) + 24px) 24px 20px;background:var(--bg)}
+.home-greeting{font-size:12px;color:var(--text2);font-weight:500;margin-bottom:4px;letter-spacing:0.5px;text-transform:uppercase}
+.home-title{font-family:var(--head);font-size:28px;font-weight:800;letter-spacing:-0.5px;line-height:1.1;margin-bottom:6px}
+.home-date{font-size:13px;color:var(--text2)}
+.menu-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:20px}
+.menu-card{background:var(--bg1);border:1px solid var(--line);border-radius:var(--r-lg);padding:20px 16px;display:flex;flex-direction:column;gap:10px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden}
+.menu-card:active{transform:scale(0.97)}
+.menu-card.primary{grid-column:span 2;flex-direction:row;align-items:center;background:var(--accent2);border-color:var(--accent);padding:22px 20px}
+.menu-card.primary .mc-icon{background:rgba(255,255,255,0.15);color:#fff}
+.menu-card.primary .mc-title{font-size:17px;color:#fff}
+.menu-card.primary .mc-sub{color:rgba(255,255,255,0.7)}
+.mc-icon{width:44px;height:44px;border-radius:var(--r-sm);background:var(--bg2);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.mc-icon svg{width:22px;height:22px}
+.mc-body{flex:1}
+.mc-title{font-family:var(--head);font-size:14px;font-weight:700;margin-bottom:2px;letter-spacing:-0.1px}
+.mc-sub{font-size:11px;color:var(--text2);line-height:1.4}
+.mc-arrow{position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:18px}
+
+/* ── CARDS / SECTIONS ── */
+.section-label{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:1px;padding:0 20px;margin:20px 0 8px}
+.card{background:var(--bg1);border:1px solid var(--line);border-radius:var(--r);margin:0 16px 12px;overflow:hidden}
+.card-pad{padding:16px}
+.scroll-area{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+
+/* ── STATUS BADGES ── */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;letter-spacing:0.3px}
+.badge-green{background:var(--green-bg);color:var(--green)}
+.badge-yellow{background:var(--yellow-bg);color:var(--yellow)}
+.badge-red{background:var(--red-bg);color:var(--red)}
+.badge-blue{background:rgba(88,166,255,0.1);color:var(--accent)}
+.badge-purple{background:var(--purple-bg);color:var(--purple)}
+.bdot{width:5px;height:5px;border-radius:50%;background:currentColor}
+.pulse{animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
 
 /* ── BUTTONS ── */
-.btn { display: flex; align-items: center; justify-content: center; gap: 8px; border: none; border-radius: var(--radius); padding: 14px 20px; font-family: var(--font); font-size: 15px; font-weight: 600; cursor: pointer; transition: transform .15s, opacity .15s; width: 100%; }
-.btn:active { transform: scale(0.97); }
-.btn-primary { background: var(--accent); color: var(--bg); }
-.btn-danger { background: var(--red-bg); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
-.btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border2); }
-.btn-green { background: var(--green-bg); color: var(--green); border: 1px solid rgba(34,197,94,0.3); }
-.btn svg { width: 18px; height: 18px; }
-.btn-group { display: flex; flex-direction: column; gap: 10px; padding: 0 16px; margin-top: 12px; }
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;border:none;border-radius:var(--r);padding:14px 20px;font-family:var(--font);font-size:15px;font-weight:600;cursor:pointer;transition:all .15s;width:100%}
+.btn:active{transform:scale(0.97)}
+.btn-primary{background:var(--accent);color:#0D1117}
+.btn-danger{background:var(--red-bg);color:var(--red);border:1px solid rgba(248,81,73,0.25)}
+.btn-ghost{background:var(--bg2);color:var(--text);border:1px solid var(--line2)}
+.btn-success{background:var(--green-bg);color:var(--green);border:1px solid rgba(63,185,80,0.25)}
+.btn-warn{background:var(--yellow-bg);color:var(--yellow);border:1px solid rgba(210,153,34,0.25)}
+.btn svg{width:18px;height:18px}
+.btn-sm{padding:10px 16px;font-size:13px}
+.btn-group{display:flex;flex-direction:column;gap:10px;padding:0 16px;margin-bottom:16px}
 
-/* ── STAT GRID ── */
-.stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 0 16px; margin-bottom: 16px; }
-.stat-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 10px; text-align: center; }
-.stat-num { font-size: 24px; font-weight: 700; font-family: var(--mono); line-height: 1; }
-.stat-lbl { font-size: 10px; color: var(--text3); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.6px; }
+/* ── COURSE SELECTOR ── */
+.course-list{display:flex;flex-direction:column;gap:0}
+.course-item{display:flex;align-items:center;gap:14px;padding:16px 20px;border-bottom:1px solid var(--line);cursor:pointer;transition:background .15s}
+.course-item:active{background:var(--bg2)}
+.course-item:last-child{border-bottom:none}
+.course-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+.course-info{flex:1}
+.course-name{font-size:15px;font-weight:600;margin-bottom:2px}
+.course-sched{font-size:12px;color:var(--text2)}
+.course-count{font-size:12px;color:var(--text3);font-weight:500}
 
-/* ── STUDENT LIST ── */
-.student-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
-.student-item:last-child { border-bottom: none; }
-.avatar { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; font-family: var(--mono); }
-.student-info { flex: 1; min-width: 0; }
-.student-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.student-id { font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 1px; }
-.student-time { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+/* ── ATTENDANCE / SCAN ── */
+.scan-container{padding:16px;display:flex;flex-direction:column;gap:12px}
+#qr-reader{width:100%;border-radius:var(--r-lg);overflow:hidden;background:var(--bg2)}
+#qr-reader video{border-radius:var(--r-lg)}
+.scan-status-bar{background:var(--bg1);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;align-items:center;justify-content:space-between}
+.scan-counter{font-family:var(--head);font-size:22px;font-weight:800;color:var(--accent)}
+.scan-counter-label{font-size:11px;color:var(--text2);margin-top:1px}
+.scan-feedback{padding:18px;border-radius:var(--r);text-align:center;transition:all .3s}
+.scan-feedback.ok{background:var(--green-bg);border:1px solid rgba(63,185,80,0.3)}
+.scan-feedback.late{background:var(--yellow-bg);border:1px solid rgba(210,153,34,0.3)}
+.scan-feedback.dup{background:rgba(88,166,255,0.08);border:1px solid rgba(88,166,255,0.2)}
+.scan-feedback.err{background:var(--red-bg);border:1px solid rgba(248,81,73,0.3)}
+.scan-feedback-name{font-family:var(--head);font-size:20px;font-weight:800;margin-bottom:4px}
+.scan-feedback-status{font-size:13px;color:var(--text2)}
 
-/* ── SCANNER ── */
-#qr-reader { width: 100%; border-radius: var(--radius); overflow: hidden; }
-#qr-reader video { border-radius: var(--radius); }
-.scan-result { padding: 20px; border-radius: var(--radius); margin: 16px; text-align: center; transition: all .3s; }
-.scan-result.ok { background: var(--green-bg); border: 1px solid rgba(34,197,94,0.3); }
-.scan-result.dup { background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.3); }
-.scan-result.err { background: var(--red-bg); border: 1px solid rgba(239,68,68,0.3); }
-.scan-result-icon { font-size: 40px; margin-bottom: 8px; }
-.scan-result-name { font-size: 18px; font-weight: 700; }
-.scan-result-status { font-size: 13px; color: var(--text2); margin-top: 4px; font-family: var(--mono); }
-
-/* ── QR GENERATOR ── */
-.qr-card { text-align: center; }
-.qr-canvas-wrap { display: flex; justify-content: center; padding: 16px; }
-#qr-canvas { border-radius: var(--radius-sm); }
-.student-select { width: 100%; background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--radius-sm); padding: 12px 14px; color: var(--text); font-family: var(--font); font-size: 14px; margin-bottom: 12px; appearance: none; -webkit-appearance: none; }
+/* ── STUDENT ROWS ── */
+.student-row{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.student-row:last-child{border-bottom:none}
+.avatar{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;font-family:var(--head)}
+.s-info{flex:1;min-width:0}
+.s-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s-id{font-size:11px;color:var(--text3);margin-top:1px}
+.s-right{display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+.s-time{font-size:11px;color:var(--text3)}
 
 /* ── STATS ── */
-.chart-wrap { position: relative; height: 200px; margin: 16px 0; }
-.filter-row { display: flex; gap: 8px; padding: 0 16px; margin-bottom: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-.filter-chip { flex-shrink: 0; padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border2); background: var(--surface); color: var(--text2); font-size: 12px; font-weight: 500; cursor: pointer; transition: all .2s; white-space: nowrap; }
-.filter-chip.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:0 16px;margin-bottom:4px}
+.stat-box{background:var(--bg1);border:1px solid var(--line);border-radius:var(--r);padding:14px 10px;text-align:center}
+.stat-num{font-family:var(--head);font-size:26px;font-weight:800;line-height:1}
+.stat-lbl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.6px;margin-top:4px}
+.chart-wrap{position:relative;height:220px}
+.tab-row{display:flex;gap:0;padding:0 16px;margin-bottom:12px;background:var(--bg2);border-radius:var(--r);margin:0 16px 16px;overflow:hidden;border:1px solid var(--line)}
+.tab-btn{flex:1;padding:10px 8px;border:none;background:none;color:var(--text2);font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;border-radius:var(--r-sm)}
+.tab-btn.active{background:var(--accent);color:#0D1117}
 
-/* ── INPUTS ── */
-input[type=text], input[type=email], input[type=password], textarea {
-  width: 100%; background: var(--surface2); border: 1px solid var(--border2);
-  border-radius: var(--radius-sm); padding: 12px 14px; color: var(--text);
-  font-family: var(--font); font-size: 14px; outline: none; transition: border-color .2s;
-}
-input:focus, textarea:focus { border-color: var(--accent); }
-textarea { resize: none; height: 80px; }
-label { font-size: 12px; color: var(--text3); margin-bottom: 6px; display: block; text-transform: uppercase; letter-spacing: 0.5px; }
-.form-group { margin-bottom: 16px; }
+/* ── DATA TABLE ── */
+.data-table{width:100%;border-collapse:collapse;font-size:12px}
+.data-table th{padding:10px 12px;text-align:left;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.6px;border-bottom:1px solid var(--line);white-space:nowrap}
+.data-table td{padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+.data-table tr:last-child td{border-bottom:none}
+.data-table tr:hover td{background:var(--bg2)}
+.pct-bar{height:4px;border-radius:2px;background:var(--line);overflow:hidden;margin-top:4px}
+.pct-fill{height:100%;border-radius:2px;background:var(--green);transition:width .5s}
 
-/* ── LOGIN ── */
-.login-screen { align-items: center; justify-content: center; padding: 40px 24px; gap: 0; }
-.login-logo { width: 72px; height: 72px; background: var(--accent); border-radius: 20px; display: flex; align-items: center; justify-content: center; margin-bottom: 24px; }
-.login-logo svg { width: 40px; height: 40px; color: var(--bg); }
-.login-title { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 8px; text-align: center; }
-.login-sub { font-size: 14px; color: var(--text3); text-align: center; margin-bottom: 40px; line-height: 1.5; }
-.login-form { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 16px; }
+/* ── ASSIGNMENTS ── */
+.assign-card{background:var(--bg1);border:1px solid var(--line);border-radius:var(--r);margin:0 16px 12px;padding:16px}
+.assign-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.assign-title{font-family:var(--head);font-size:15px;font-weight:700;flex:1}
+.assign-student-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.assign-student-row:last-child{border-bottom:none}
 
-/* ── CLASS BANNER ── */
-.class-banner { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin: 12px 16px; display: flex; align-items: center; gap: 12px; }
-.class-banner-info { flex: 1; }
-.class-banner-title { font-size: 13px; font-weight: 600; }
-.class-banner-time { font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 2px; }
-.timer { font-family: var(--mono); font-size: 20px; font-weight: 700; color: var(--accent); }
+/* ── FORMS ── */
+input[type=text],input[type=email],input[type=password],input[type=time],select,textarea{
+  width:100%;background:var(--bg2);border:1px solid var(--line2);
+  border-radius:var(--r-sm);padding:12px 14px;color:var(--text);
+  font-family:var(--font);font-size:14px;outline:none;transition:border-color .2s;
+  appearance:none;-webkit-appearance:none}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238B949E' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:36px}
+textarea{resize:none;height:80px}
+label{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;font-weight:500}
+.form-group{margin-bottom:16px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 
 /* ── MODAL ── */
-.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200; display: flex; align-items: flex-end; opacity: 0; pointer-events: none; transition: opacity .3s; }
-.modal-overlay.open { opacity: 1; pointer-events: all; }
-.modal { background: var(--bg2); border-radius: var(--radius) var(--radius) 0 0; padding: 20px; width: 100%; max-height: 80dvh; overflow-y: auto; transform: translateY(100%); transition: transform .3s; }
-.modal-overlay.open .modal { transform: translateY(0); }
-.modal-handle { width: 40px; height: 4px; background: var(--border2); border-radius: 2px; margin: 0 auto 20px; }
-.modal-title { font-size: 17px; font-weight: 700; margin-bottom: 20px; }
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:200;display:flex;align-items:flex-end;opacity:0;pointer-events:none;transition:opacity .25s}
+.overlay.open{opacity:1;pointer-events:all}
+.modal{background:var(--bg1);border-radius:var(--r-lg) var(--r-lg) 0 0;padding:0;width:100%;max-height:88dvh;overflow-y:auto;transform:translateY(100%);transition:transform .3s cubic-bezier(.32,.72,0,1)}
+.overlay.open .modal{transform:translateY(0)}
+.modal-handle{width:36px;height:4px;background:var(--line2);border-radius:2px;margin:12px auto 0}
+.modal-header{padding:16px 20px 0;display:flex;align-items:center;gap:12px}
+.modal-title{font-family:var(--head);font-size:18px;font-weight:800;flex:1}
+.modal-body{padding:20px}
+.modal-close{width:32px;height:32px;border-radius:50%;background:var(--bg2);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2)}
+.modal-close svg{width:14px;height:14px}
 
-/* ── FEEDBACK TOAST ── */
-.toast { position: fixed; top: calc(var(--safe-top) + 80px); left: 50%; transform: translateX(-50%) translateY(-20px); background: var(--bg2); border: 1px solid var(--border2); border-radius: 30px; padding: 10px 20px; font-size: 13px; font-weight: 600; z-index: 300; opacity: 0; transition: all .3s; white-space: nowrap; }
-.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+/* ── TOAST ── */
+.toast{position:fixed;top:calc(var(--safe-t) + 76px);left:50%;transform:translateX(-50%) translateY(-8px);background:var(--bg2);border:1px solid var(--line2);border-radius:30px;padding:10px 20px;font-size:13px;font-weight:500;z-index:400;opacity:0;transition:all .25s;white-space:nowrap;max-width:90vw;text-overflow:ellipsis;overflow:hidden}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
-/* ── DETAIL ROW ── */
-.detail-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
-.detail-row:last-child { border-bottom: none; }
-.detail-label { font-size: 12px; color: var(--text3); }
-.detail-val { font-size: 13px; font-weight: 500; font-family: var(--mono); }
+/* ── EMPTY ── */
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 24px;color:var(--text3);gap:12px}
+.empty-state svg{width:48px;height:48px;opacity:0.3}
+.empty-state p{font-size:14px;text-align:center;line-height:1.5}
 
-/* ── SECTION TITLE ── */
-.section-title { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; padding: 0 16px; margin: 16px 0 8px; }
+/* ── TIMER ── */
+.class-timer{font-family:var(--head);font-size:32px;font-weight:800;color:var(--accent);letter-spacing:-1px}
+.tolerance-bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin-top:6px}
+.tolerance-fill{height:100%;border-radius:3px;transition:width 1s linear,background .5s}
 
-/* ── EMPTY STATE ── */
-.empty { text-align: center; padding: 40px 20px; color: var(--text3); }
-.empty svg { width: 48px; height: 48px; margin-bottom: 12px; opacity: 0.4; }
-.empty p { font-size: 14px; }
+/* ── SETTINGS ── */
+.settings-row{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--line);cursor:pointer}
+.settings-row:last-child{border-bottom:none}
+.settings-label{font-size:14px;font-weight:500}
+.settings-value{font-size:13px;color:var(--text2)}
+.toggle{width:44px;height:26px;border-radius:13px;background:var(--line2);border:none;cursor:pointer;position:relative;transition:background .2s;flex-shrink:0}
+.toggle.on{background:var(--green)}
+.toggle::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .2s}
+.toggle.on::after{transform:translateX(18px)}
 
-/* ── TRANSITIONS ── */
-.fade-in { animation: fadeIn .3s ease; }
-@keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+/* ── SCROLL ── */
+::-webkit-scrollbar{width:0}
+.filter-scroll{display:flex;gap:8px;padding:0 16px;overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:12px}
+.filter-chip{flex-shrink:0;padding:7px 14px;border-radius:20px;border:1px solid var(--line2);background:var(--bg1);color:var(--text2);font-size:12px;font-weight:500;cursor:pointer;transition:all .2s;white-space:nowrap}
+.filter-chip.active{background:var(--accent);color:#0D1117;border-color:var(--accent)}
 
-/* ── SCROLLBAR ── */
-::-webkit-scrollbar { width: 0; }
+/* ── ANIMATIONS ── */
+.fade-in{animation:fadeIn .25s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.slide-up{animation:slideUp .3s cubic-bezier(.32,.72,0,1)}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── QR DISPLAY ── */
+.qr-wrap{display:flex;justify-content:center;padding:24px;background:white;border-radius:var(--r);margin:0 0 16px}
 </style>
 </head>
 <body>
-<div id="app">
 
-<!-- ════ LOGIN ════ -->
-<div id="login-screen" class="screen active screen-no-nav login-screen">
-  <div class="login-logo">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+<!-- ══════════════════════════════════════════ -->
+<!-- LOGIN                                      -->
+<!-- ══════════════════════════════════════════ -->
+<div id="s-login" class="screen active screen-full" style="align-items:center;justify-content:center;padding:40px 28px;gap:0;background:var(--bg)">
+  <div style="width:64px;height:64px;background:var(--accent2);border-radius:20px;display:flex;align-items:center;justify-content:center;margin-bottom:28px">
+    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
   </div>
-  <h1 class="login-title">AsistenciaQR</h1>
-  <p class="login-sub">Gestión de asistencia con escaneo de códigos QR para docentes</p>
-  <div class="login-form">
-    <div class="form-group">
-      <label>Email docente</label>
+  <h1 style="font-family:var(--head);font-size:32px;font-weight:800;letter-spacing:-1px;margin-bottom:8px;text-align:center">Assistant Day</h1>
+  <p style="font-size:14px;color:var(--text2);text-align:center;margin-bottom:40px;line-height:1.5">Sistema de asistencia escolar<br>con lectura de códigos QR</p>
+  <div style="width:100%;max-width:360px;display:flex;flex-direction:column;gap:14px">
+    <div class="form-group" style="margin-bottom:0">
+      <label>Email</label>
       <input type="email" id="login-email" placeholder="docente@escuela.edu" value="docente@escuela.edu">
     </div>
-    <div class="form-group">
+    <div class="form-group" style="margin-bottom:0">
       <label>Contraseña</label>
       <input type="password" id="login-pass" placeholder="••••••••" value="1234">
     </div>
-    <button class="btn btn-primary" onclick="doLogin()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
+    <button class="btn btn-primary" style="margin-top:8px" onclick="doLogin()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
       Ingresar
     </button>
-    <p style="text-align:center;font-size:12px;color:var(--text3)">Demo: cualquier email / contraseña</p>
+    <p style="text-align:center;font-size:12px;color:var(--text3)">Demo: cualquier email + contraseña</p>
   </div>
 </div>
 
-<!-- ════ HOME ════ -->
-<div id="home-screen" class="screen">
-  <div class="header">
-    <div class="header-row">
-      <div>
-        <h1>Panel de Clase</h1>
-        <div class="sub" id="header-date">—</div>
+<!-- ══════════════════════════════════════════ -->
+<!-- HOME                                       -->
+<!-- ══════════════════════════════════════════ -->
+<div id="s-home" class="screen">
+  <div class="home-hero">
+    <div class="home-greeting">Bienvenido/a</div>
+    <div class="home-title" id="home-name">Docente</div>
+    <div class="home-date" id="home-date">—</div>
+  </div>
+  <div class="scroll-area">
+    <div class="menu-grid">
+      <!-- START ATTENDANCE -->
+      <div class="menu-card primary" onclick="goStartAttendance()">
+        <div class="mc-icon" style="background:rgba(255,255,255,0.15)">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16" fill="#fff" stroke="none"/></svg>
+        </div>
+        <div class="mc-body">
+          <div class="mc-title">Iniciar Asistencia</div>
+          <div class="mc-sub">Escanear QR de alumnos</div>
+        </div>
       </div>
-      <div id="class-badge"></div>
+      <!-- VIEW DAILY -->
+      <div class="menu-card" onclick="goViewRecords()">
+        <div class="mc-icon" style="color:var(--green)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <div class="mc-title">Registros del Día</div>
+        <div class="mc-sub" style="font-size:11px;color:var(--text2)">Ver asistencia de hoy</div>
+      </div>
+      <!-- SYNC -->
+      <div class="menu-card" onclick="goSync()">
+        <div class="mc-icon" style="color:var(--accent)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+        </div>
+        <div class="mc-title">Sincronizar</div>
+        <div class="mc-sub" style="font-size:11px;color:var(--text2)">Actualizar desde Sheets</div>
+      </div>
+      <!-- ASSIGNMENTS -->
+      <div class="menu-card" onclick="goAssignments()">
+        <div class="mc-icon" style="color:var(--orange)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        </div>
+        <div class="mc-title">Entregas</div>
+        <div class="mc-sub" style="font-size:11px;color:var(--text2)">Registrar trabajos</div>
+      </div>
+      <!-- VIEW ASSIGNMENTS -->
+      <div class="menu-card" onclick="goViewAssignments()">
+        <div class="mc-icon" style="color:var(--purple)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        </div>
+        <div class="mc-title">Ver Entregas</div>
+        <div class="mc-sub" style="font-size:11px;color:var(--text2)">Estado por alumno</div>
+      </div>
+      <!-- STATISTICS -->
+      <div class="menu-card" onclick="showScreen('stats')" style="grid-column:span 2;flex-direction:row;align-items:center">
+        <div class="mc-icon" style="color:var(--yellow)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        </div>
+        <div class="mc-body">
+          <div class="mc-title">Estadísticas</div>
+          <div class="mc-sub" style="font-size:11px;color:var(--text2)">Presentes, tardanzas, ausentes · Mensual · Anual</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active class banner -->
+    <div id="active-banner" style="display:none;margin:0 16px 16px">
+      <div style="background:rgba(63,185,80,0.08);border:1px solid rgba(63,185,80,0.25);border-radius:var(--r);padding:14px 16px;display:flex;align-items:center;gap:12px">
+        <div style="width:10px;height:10px;border-radius:50%;background:var(--green);flex-shrink:0" class="pulse"></div>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:600;color:var(--green)" id="banner-course-name">Clase activa</div>
+          <div style="font-size:11px;color:var(--text2)" id="banner-info">—</div>
+        </div>
+        <button class="btn btn-sm" style="width:auto;background:var(--green);color:#0D1117;padding:8px 14px;font-size:12px" onclick="goScanActive()">Continuar →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- COURSE SELECTOR (para asistencia)          -->
+<!-- ══════════════════════════════════════════ -->
+<div id="s-courses" class="screen screen-full">
+  <div class="topbar">
+    <div class="topbar-row">
+      <div class="topbar-back" onclick="showScreen('home')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></div>
+      <div class="topbar-title">Seleccionar Curso</div>
+      <button class="topbar-action" style="background:var(--accent);color:#0D1117" onclick="openModal('modal-add-course')">+ Curso</button>
+    </div>
+  </div>
+  <div class="scroll-area" style="padding-top:8px">
+    <div class="section-label">Cursos configurados</div>
+    <div class="card" id="course-selector-list" style="margin-bottom:12px"></div>
+    <div class="section-label" style="margin-top:4px">Gestión</div>
+    <div class="card" style="padding:0">
+      <div class="settings-row" onclick="openModal('modal-manage-courses')">
+        <span class="settings-label">Editar / eliminar cursos</span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- SCAN SCREEN                               -->
+<!-- ══════════════════════════════════════════ -->
+<div id="s-scan" class="screen screen-full">
+  <div class="topbar">
+    <div class="topbar-row">
+      <div class="topbar-back" onclick="stopScanAndGoHome()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></div>
+      <div style="flex:1">
+        <div class="topbar-title" id="scan-course-title">Asistencia</div>
+        <div style="font-size:11px;color:var(--text2)" id="scan-tolerance-info">—</div>
+      </div>
+      <div id="scan-status-badge"></div>
     </div>
   </div>
   <div class="scroll-area">
-
-    <!-- Sin clase activa -->
-    <div id="no-class-view">
-      <div style="padding:20px 16px 0">
-        <button class="btn btn-primary" onclick="startClass()" style="margin-bottom:12px">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16"/></svg>
-          Iniciar Clase
-        </button>
-      </div>
-      <div class="section-title">Alumnos registrados</div>
-      <div class="card" id="student-list-home" style="padding:0"></div>
-    </div>
-
-    <!-- Con clase activa -->
-    <div id="active-class-view" style="display:none">
-      <div class="class-banner">
-        <div class="class-banner-info">
-          <div class="class-banner-title">Clase en curso</div>
-          <div class="class-banner-time" id="class-start-info">—</div>
+    <div class="scan-container">
+      <!-- Timer row -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:0 2px">
+        <div>
+          <div class="class-timer" id="scan-timer">00:00</div>
+          <div style="font-size:11px;color:var(--text2)">Tiempo transcurrido</div>
+          <div class="tolerance-bar" style="width:120px"><div class="tolerance-fill" id="tolerance-fill" style="width:0%;background:var(--green)"></div></div>
         </div>
-        <div class="timer" id="class-timer">00:00</div>
-      </div>
-      <div class="stat-grid">
-        <div class="stat-box">
-          <div class="stat-num" id="cnt-present" style="color:var(--green)">0</div>
-          <div class="stat-lbl">Presentes</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-num" id="cnt-late" style="color:var(--yellow)">0</div>
-          <div class="stat-lbl">Tarde</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-num" id="cnt-absent" style="color:var(--red)">0</div>
-          <div class="stat-lbl">Ausentes</div>
+        <div style="text-align:right">
+          <div style="display:flex;gap:12px">
+            <div style="text-align:center">
+              <div style="font-family:var(--head);font-size:22px;font-weight:800;color:var(--green)" id="sc-present">0</div>
+              <div style="font-size:10px;color:var(--text3)">PRESENTE</div>
+            </div>
+            <div style="text-align:center">
+              <div style="font-family:var(--head);font-size:22px;font-weight:800;color:var(--yellow)" id="sc-late">0</div>
+              <div style="font-size:10px;color:var(--text3)">TARDE</div>
+            </div>
+            <div style="text-align:center">
+              <div style="font-family:var(--head);font-size:22px;font-weight:800;color:var(--red)" id="sc-absent">0</div>
+              <div style="font-size:10px;color:var(--text3)">FALTA</div>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="section-title">Registrados en esta clase</div>
-      <div class="card" id="scanned-list" style="padding:0">
-        <div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9a2 2 0 012-2h14a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path d="M9 3h6"/></svg><p>Aún no hay alumnos escaneados</p></div>
-      </div>
-      <div class="section-title">Sin registrar</div>
-      <div class="card" id="pending-list" style="padding:0"></div>
-      <div class="btn-group">
-        <button class="btn btn-danger" onclick="finishClass()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
-          Finalizar Clase
-        </button>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<!-- ════ SCANNER ════ -->
-<div id="scan-screen" class="screen">
-  <div class="header">
-    <div class="header-row">
-      <h1>Escanear QR</h1>
-      <div id="scan-class-badge"></div>
-    </div>
-  </div>
-  <div style="padding:16px">
-    <div id="qr-reader"></div>
-  </div>
-  <div id="scan-result-area" style="display:none"></div>
-  <div id="no-class-scan-msg" style="display:none;padding:20px;text-align:center">
-    <div class="card" style="margin:0">
-      <p style="color:var(--yellow);font-weight:600;margin-bottom:8px">⚠️ No hay clase activa</p>
-      <p style="font-size:13px;color:var(--text2)">Inicia una clase desde el Panel antes de escanear.</p>
+      <!-- QR Reader -->
+      <div id="qr-reader"></div>
+      <!-- Demo button -->
+      <button class="btn btn-ghost btn-sm" onclick="demoScan()" id="demo-scan-btn" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h3v-3M17 20v1M20 17h1"/></svg>
+        Simular escaneo (demo)
+      </button>
+      <!-- Feedback -->
+      <div id="scan-feedback" style="display:none"></div>
+      <!-- Scanned list -->
+      <div class="section-label" style="padding:0">Escaneados</div>
+      <div class="card" id="scanned-card" style="margin:0"><div class="empty-state" style="padding:24px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><p>Esperando escaneos...</p></div></div>
+      <!-- Pending -->
+      <div class="section-label" style="padding:0">Sin registrar</div>
+      <div class="card" id="pending-card" style="margin:0"></div>
+      <!-- Close button -->
+      <button class="btn btn-danger" onclick="closeAttendance()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/></svg>
+        Cerrar Asistencia
+      </button>
     </div>
   </div>
 </div>
 
-<!-- ════ ALUMNOS / QR ════ -->
-<div id="students-screen" class="screen">
-  <div class="header">
-    <div class="header-row">
-      <h1>Alumnos</h1>
-      <button class="badge blue" onclick="openAddStudent()">+ Agregar</button>
+<!-- ══════════════════════════════════════════ -->
+<!-- DAILY RECORDS                             -->
+<!-- ══════════════════════════════════════════ -->
+<div id="s-records" class="screen">
+  <div class="topbar">
+    <div class="topbar-row">
+      <div class="topbar-back" onclick="showScreen('home')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></div>
+      <div class="topbar-title">Registros del Día</div>
     </div>
   </div>
-  <div class="scroll-area">
-    <div class="section-title">Lista de alumnos</div>
-    <div class="card" id="students-full-list" style="padding:0"></div>
+  <div class="scroll-area" style="padding-top:8px">
+    <div class="filter-scroll" id="records-course-filter"></div>
+    <div id="records-list"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- STATISTICS                                -->
+<!-- ══════════════════════════════════════════ -->
+<div id="s-stats" class="screen">
+  <div class="topbar">
+    <div class="topbar-row">
+      <div class="topbar-back" onclick="showScreen('home')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></div>
+      <div class="topbar-title">Estadísticas</div>
+      <button class="topbar-action" style="background:var(--bg2);color:var(--accent);border:1px solid var(--line2)" onclick="syncStats()">↻ Sync</button>
+    </div>
+  </div>
+  <div class="scroll-area" style="padding-top:12px">
+    <!-- Course filter -->
+    <div class="filter-scroll" id="stats-course-filter"></div>
+    <!-- Tab row -->
+    <div class="tab-row" id="stats-tabs">
+      <button class="tab-btn active" onclick="setStatsTab('general',this)">General</button>
+      <button class="tab-btn" onclick="setStatsTab('monthly',this)">Mensual</button>
+      <button class="tab-btn" onclick="setStatsTab('yearly',this)">Anual</button>
+    </div>
+    <!-- Summary -->
+    <div class="stats-grid">
+      <div class="stat-box"><div class="stat-num" id="st-present" style="color:var(--green)">0</div><div class="stat-lbl">Presentes</div></div>
+      <div class="stat-box"><div class="stat-num" id="st-late" style="color:var(--yellow)">0</div><div class="stat-lbl">Tardanzas</div></div>
+      <div class="stat-box"><div class="stat-num" id="st-absent" style="color:var(--red)">0</div><div class="stat-lbl">Ausencias</div></div>
+    </div>
+    <!-- Chart -->
+    <div class="card card-pad" style="margin-top:12px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:12px" id="stats-chart-title">Distribución general</div>
+      <div class="chart-wrap"><canvas id="stats-chart"></canvas></div>
+    </div>
+    <!-- Table -->
+    <div class="section-label" id="stats-table-label">Por alumno</div>
+    <div class="card" style="overflow-x:auto;padding:0">
+      <table class="data-table" id="stats-table">
+        <thead><tr><th>Alumno</th><th>Pres.</th><th>Tarde</th><th>Aus.</th><th>% Asist.</th></tr></thead>
+        <tbody id="stats-tbody"></tbody>
+      </table>
+    </div>
     <div style="height:16px"></div>
   </div>
 </div>
 
-<!-- ════ ESTADÍSTICAS ════ -->
-<div id="stats-screen" class="screen">
-  <div class="header">
-    <div class="header-row">
-      <h1>Estadísticas</h1>
-      <button class="badge blue" id="sync-btn" onclick="syncFromSheets()">↻ Sync</button>
+<!-- ══════════════════════════════════════════ -->
+<!-- ASSIGNMENTS                               -->
+<!-- ══════════════════════════════════════════ -->
+<div id="s-assignments" class="screen">
+  <div class="topbar">
+    <div class="topbar-row">
+      <div class="topbar-back" onclick="showScreen('home')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></div>
+      <div class="topbar-title">Entregas</div>
+      <button class="topbar-action" style="background:var(--accent);color:#0D1117" onclick="openModal('modal-new-assignment')">+ Nueva</button>
     </div>
   </div>
-  <div class="scroll-area">
-    <div class="filter-row" id="month-filters"></div>
-    <div class="stat-grid" style="margin-bottom:0">
-      <div class="stat-box">
-        <div class="stat-num" id="stats-present" style="color:var(--green)">0</div>
-        <div class="stat-lbl">Presentes</div>
-      </div>
-      <div class="stat-box">
-        <div class="stat-num" id="stats-late" style="color:var(--yellow)">0</div>
-        <div class="stat-lbl">Tardanzas</div>
-      </div>
-      <div class="stat-box">
-        <div class="stat-num" id="stats-absent" style="color:var(--red)">0</div>
-        <div class="stat-lbl">Ausencias</div>
-      </div>
-    </div>
-    <div class="card" style="margin-top:12px">
-      <div style="font-size:13px;font-weight:600;margin-bottom:12px">Distribución por alumno</div>
-      <div class="chart-wrap"><canvas id="bar-chart"></canvas></div>
-    </div>
-    <div class="card">
-      <div style="font-size:13px;font-weight:600;margin-bottom:12px">Resumen general</div>
-      <div class="chart-wrap" style="height:160px"><canvas id="pie-chart"></canvas></div>
-    </div>
-    <div class="section-title">Detalle por alumno</div>
-    <div id="stats-detail"></div>
-    <div style="height:16px"></div>
+  <div class="scroll-area" style="padding-top:8px">
+    <div class="section-label">Trabajos activos</div>
+    <div id="assignments-list"></div>
   </div>
 </div>
 
-<!-- ════ BOTTOM NAV ════ -->
-<nav class="bottom-nav" id="bottom-nav" style="display:none">
-  <button class="nav-btn active" id="nav-home" onclick="showScreen('home')">
+<!-- ══════════════════════════════════════════ -->
+<!-- VIEW ASSIGNMENTS                          -->
+<!-- ══════════════════════════════════════════ -->
+<div id="s-view-assignments" class="screen">
+  <div class="topbar">
+    <div class="topbar-row">
+      <div class="topbar-back" onclick="showScreen('home')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></div>
+      <div class="topbar-title">Estado de Entregas</div>
+    </div>
+  </div>
+  <div class="scroll-area" style="padding-top:8px">
+    <div class="filter-scroll" id="va-course-filter"></div>
+    <div id="va-list"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- BOTTOM NAV                                -->
+<!-- ══════════════════════════════════════════ -->
+<nav class="bottom-nav" id="bottom-nav">
+  <button class="nav-item active" id="nav-home" onclick="showScreen('home')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
-    Panel
+    Inicio
   </button>
-  <button class="nav-btn nav-scan" id="nav-scan" onclick="showScreen('scan')">
-    <div class="nav-inner">
+  <button class="nav-item" id="nav-records" onclick="goViewRecords()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+    Registros
+  </button>
+  <button class="nav-item nav-center" id="nav-scan" onclick="goStartAttendance()">
+    <div class="nav-scan-pill">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>
       Escanear
     </div>
   </button>
-  <button class="nav-btn" id="nav-students" onclick="showScreen('students')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
-    Alumnos
-  </button>
-  <button class="nav-btn" id="nav-stats" onclick="showScreen('stats')">
+  <button class="nav-item" id="nav-stats" onclick="showScreen('stats')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
     Stats
   </button>
+  <button class="nav-item" id="nav-assignments" onclick="goViewAssignments()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+    Entregas
+  </button>
 </nav>
 
-<!-- ════ MODALS ════ -->
+<!-- ══════════════════════════════════════════ -->
+<!-- MODALS                                    -->
+<!-- ══════════════════════════════════════════ -->
 
-<!-- Modal: detalle alumno -->
-<div class="modal-overlay" id="modal-student">
+<!-- Add Course -->
+<div class="overlay" id="modal-add-course">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title" id="modal-student-name">Alumno</div>
-    <div id="modal-student-body"></div>
-    <div style="height:16px"></div>
-    <button class="btn btn-ghost" onclick="closeModal('modal-student')">Cerrar</button>
-  </div>
-</div>
-
-<!-- Modal: agregar alumno -->
-<div class="modal-overlay" id="modal-add-student">
-  <div class="modal">
-    <div class="modal-handle"></div>
-    <div class="modal-title">Nuevo Alumno</div>
-    <div class="form-group">
-      <label>Nombre completo</label>
-      <input type="text" id="new-student-name" placeholder="Ej: María García">
+    <div class="modal-header">
+      <div class="modal-title">Nuevo Curso</div>
+      <button class="modal-close" onclick="closeModal('modal-add-course')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
-    <div class="form-group">
-      <label>ID / Legajo</label>
-      <input type="text" id="new-student-id" placeholder="Ej: 2024-001">
-    </div>
-    <div style="height:8px"></div>
-    <button class="btn btn-primary" onclick="addStudent()" style="margin-bottom:10px">Guardar y generar QR</button>
-    <button class="btn btn-ghost" onclick="closeModal('modal-add-student')">Cancelar</button>
-  </div>
-</div>
-
-<!-- Modal: ver QR de alumno -->
-<div class="modal-overlay" id="modal-qr">
-  <div class="modal">
-    <div class="modal-handle"></div>
-    <div class="modal-title" id="modal-qr-title">Código QR</div>
-    <div class="qr-canvas-wrap"><canvas id="qr-canvas"></canvas></div>
-    <div style="text-align:center;margin-bottom:16px">
-      <div style="font-size:13px;color:var(--text3);margin-bottom:4px" id="modal-qr-id"></div>
-    </div>
-    <button class="btn btn-primary" onclick="downloadQR()" style="margin-bottom:10px">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-      Descargar QR
-    </button>
-    <button class="btn btn-ghost" onclick="closeModal('modal-qr')">Cerrar</button>
-  </div>
-</div>
-
-<!-- Modal: observaciones -->
-<div class="modal-overlay" id="modal-obs">
-  <div class="modal">
-    <div class="modal-handle"></div>
-    <div class="modal-title">Observaciones</div>
-    <div class="modal-title" id="modal-obs-name" style="font-size:14px;font-weight:400;color:var(--text2);margin-top:-12px;margin-bottom:16px"></div>
-    <div class="form-group">
-      <label>Entrega</label>
-      <div style="display:flex;gap:8px">
-        <button class="btn" id="obs-delivered-yes" onclick="setDelivery(true)" style="flex:1;padding:10px">✓ Entregó</button>
-        <button class="btn" id="obs-delivered-no" onclick="setDelivery(false)" style="flex:1;padding:10px">✗ No entregó</button>
+    <div class="modal-body">
+      <div class="form-group"><label>Nombre del curso</label><input type="text" id="nc-name" placeholder="Ej: 3° Secundaria A"></div>
+      <div class="form-group"><label>Color identificador</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap" id="nc-color-picker">
+          <div class="color-opt active" data-color="#58A6FF" style="width:32px;height:32px;border-radius:50%;background:#58A6FF;cursor:pointer;border:3px solid transparent" onclick="selectColor(this)"></div>
+          <div class="color-opt" data-color="#3FB950" style="width:32px;height:32px;border-radius:50%;background:#3FB950;cursor:pointer;border:3px solid transparent" onclick="selectColor(this)"></div>
+          <div class="color-opt" data-color="#D29922" style="width:32px;height:32px;border-radius:50%;background:#D29922;cursor:pointer;border:3px solid transparent" onclick="selectColor(this)"></div>
+          <div class="color-opt" data-color="#F85149" style="width:32px;height:32px;border-radius:50%;background:#F85149;cursor:pointer;border:3px solid transparent" onclick="selectColor(this)"></div>
+          <div class="color-opt" data-color="#BC8CFF" style="width:32px;height:32px;border-radius:50%;background:#BC8CFF;cursor:pointer;border:3px solid transparent" onclick="selectColor(this)"></div>
+          <div class="color-opt" data-color="#F0883E" style="width:32px;height:32px;border-radius:50%;background:#F0883E;cursor:pointer;border:3px solid transparent" onclick="selectColor(this)"></div>
+        </div>
       </div>
+      <div class="form-group"><label>Días y horarios</label>
+        <div id="nc-schedules" style="display:flex;flex-direction:column;gap:8px"></div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="addScheduleRow()">+ Agregar día/hora</button>
+      </div>
+      <div class="form-group"><label>Alumnos (uno por línea: ID,Nombre)</label>
+        <textarea id="nc-students" placeholder="STU001,Juan Pérez&#10;STU002,María García&#10;STU003,Pedro López" style="height:120px"></textarea>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">Formato: ID,Nombre — un alumno por línea</div>
+      </div>
+      <button class="btn btn-primary" onclick="saveCourse()" style="margin-bottom:8px">Guardar Curso</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-add-course')">Cancelar</button>
     </div>
-    <div class="form-group">
-      <label>Observaciones</label>
-      <textarea id="obs-text" placeholder="Notas sobre el alumno..."></textarea>
+  </div>
+</div>
+
+<!-- Manage Courses -->
+<div class="overlay" id="modal-manage-courses">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <div class="modal-title">Gestionar Cursos</div>
+      <button class="modal-close" onclick="closeModal('modal-manage-courses')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
-    <button class="btn btn-primary" onclick="saveObservation()" style="margin-bottom:10px">Guardar</button>
-    <button class="btn btn-ghost" onclick="closeModal('modal-obs')">Cancelar</button>
+    <div class="modal-body" id="manage-courses-body" style="padding-top:8px"></div>
+  </div>
+</div>
+
+<!-- Student QR Modal -->
+<div class="overlay" id="modal-qr">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <div class="modal-title" id="modal-qr-title">Código QR</div>
+      <button class="modal-close" onclick="closeModal('modal-qr')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="qr-wrap"><canvas id="modal-qr-canvas"></canvas></div>
+      <div style="text-align:center;margin-bottom:16px;font-size:13px;color:var(--text2)" id="modal-qr-sub"></div>
+      <button class="btn btn-primary" onclick="downloadQR()" style="margin-bottom:8px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        Descargar QR
+      </button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-qr')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- New Assignment -->
+<div class="overlay" id="modal-new-assignment">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <div class="modal-title">Nueva Entrega</div>
+      <button class="modal-close" onclick="closeModal('modal-new-assignment')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group"><label>Título del trabajo</label><input type="text" id="na-title" placeholder="Ej: Trabajo Práctico N°1"></div>
+      <div class="form-group"><label>Curso</label><select id="na-course"><option value="">Seleccionar curso...</option></select></div>
+      <div class="form-group"><label>Fecha de entrega</label><input type="text" id="na-due" placeholder="Ej: 15/07/2025"></div>
+      <button class="btn btn-primary" onclick="saveAssignment()" style="margin-bottom:8px">Crear</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-new-assignment')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Student detail -->
+<div class="overlay" id="modal-student">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <div class="modal-title" id="modal-student-name">Alumno</div>
+      <button class="modal-close" onclick="closeModal('modal-student')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body" id="modal-student-body"></div>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
 
+<!-- ══════════════════════════════════════════ -->
+<!-- JAVASCRIPT                                -->
+<!-- ══════════════════════════════════════════ -->
 <script>
-// ═══════════════════════════════════════════════
-// GOOGLE SHEETS CONFIG
-// ═══════════════════════════════════════════════
+// ═══════════════════════
+// CONFIG
+// ═══════════════════════
 const SHEETS_API = 'https://script.google.com/macros/s/AKfycbwE3ZfgxGA8drFqYUYphgMLYBEJr3d_TPEn6a1Ca_7Pw6J-OyjxucVQDGpp50TuhzuH4g/exec';
+const TOLERANCE_MS = 10 * 60 * 1000; // 10 minutos
 
+// ═══════════════════════
+// STATE
+// ═══════════════════════
+const S = {
+  user: null,
+  courses: [],       // { id, name, color, schedules:[{day,time}], students:[{id,name}] }
+  attendance: [],    // { id, studentId, studentName, courseId, courseName, date, time, status }
+  assignments: [],   // { id, title, courseId, due, submissions:{studentId:bool} }
+  activeClass: null, // { courseId, courseName, startTime, scanned:{} }
+  timerInterval: null,
+  scanner: null,
+  scannerOn: false,
+  statsTab: 'general',
+  statsCourse: 'all',
+  selectedColor: '#58A6FF',
+  scheduleCount: 0,
+  charts: {},
+};
+
+// ═══════════════════════
+// STORAGE
+// ═══════════════════════
+const save = (k,v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} };
+const load = k => { try { const d = localStorage.getItem(k); return d ? JSON.parse(d) : null; } catch(e){ return null; } };
+
+function initData() {
+  S.courses = load('ad_courses') || [];
+  S.attendance = load('ad_attendance') || [];
+  S.assignments = load('ad_assignments') || [];
+  const ac = load('ad_active_class');
+  if (ac) { S.activeClass = ac; S.activeClass.startTime = new Date(ac.startTime); }
+}
+
+// ═══════════════════════
+// GOOGLE SHEETS
+// ═══════════════════════
 async function sheetsPost(record) {
   try {
-    await fetch(SHEETS_API, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(record)
-    });
+    await fetch(SHEETS_API, { method:'POST', mode:'no-cors', headers:{'Content-Type':'application/json'}, body:JSON.stringify(record) });
     return true;
-  } catch(e) {
-    queueOffline(record);
-    return false;
-  }
+  } catch(e) { offlineQueue(record); return false; }
 }
 
 async function sheetsGet() {
   try {
-    const res = await fetch(SHEETS_API + '?t=' + Date.now());
-    if (!res.ok) return null;
-    return await res.json();
+    const r = await fetch(SHEETS_API + '?t=' + Date.now());
+    if (!r.ok) return null;
+    return await r.json();
   } catch(e) { return null; }
 }
 
-function queueOffline(record) {
-  const q = JSON.parse(localStorage.getItem('att_offline') || '[]');
-  q.push(record);
-  localStorage.setItem('att_offline', JSON.stringify(q));
+function offlineQueue(r) {
+  const q = load('ad_offline') || [];
+  q.push(r); save('ad_offline', q);
 }
 
-async function syncOfflineQueue() {
-  const q = JSON.parse(localStorage.getItem('att_offline') || '[]');
+async function flushOffline() {
+  const q = load('ad_offline') || [];
   if (!q.length) return 0;
-  let sent = 0;
-  for (const r of q) {
-    const ok = await sheetsPost(r);
-    if (ok) sent++;
-  }
-  if (sent === q.length) localStorage.removeItem('att_offline');
-  return sent;
+  let n = 0;
+  for (const r of q) { if (await sheetsPost(r)) n++; }
+  if (n === q.length) localStorage.removeItem('ad_offline');
+  return n;
 }
 
-window.addEventListener('online', () => {
-  syncOfflineQueue().then(n => { if(n>0) showToast(n + ' registros sincronizados ✓'); });
-});
+window.addEventListener('online', () => flushOffline().then(n => { if(n>0) toast(n+' registros sincronizados ✓'); }));
 
-// ═══════════════════════════════════════════════
-// STATE
-// ═══════════════════════════════════════════════
-const APP = {
-  user: null,
-  classActive: false,
-  classStart: null,
-  toleranceMs: 15 * 60 * 1000,
-  timerInterval: null,
-  scannedThisClass: {},
-  currentQRStudent: null,
-  currentObsRecord: null,
-  currentObsDelivery: null,
-  statsFilter: 'all',
-  scanner: null,
-  scannerRunning: false,
-  charts: {},
-  sheetsData: null,
-};
-
-
-// ─── DEMO DATA ───
-let students = [
-  { id: 'STU-001', name: 'Lucas Ramírez', color: '#38bdf8' },
-  { id: 'STU-002', name: 'Valentina Gómez', color: '#a78bfa' },
-  { id: 'STU-003', name: 'Mateo Fernández', color: '#22c55e' },
-  { id: 'STU-004', name: 'Isabella López', color: '#f59e0b' },
-  { id: 'STU-005', name: 'Sebastián Torres', color: '#ef4444' },
-  { id: 'STU-006', name: 'Camila Martínez', color: '#ec4899' },
-];
-
-// attendance records: { studentId, name, date, time, status, delivered, observations }
-let attendance = loadFromStorage('att_records') || generateDemoData();
-
-// ─── STORAGE ───
-function saveToStorage(key, data) {
-  try { localStorage.setItem(key, JSON.stringify(data)); } catch(e) {}
-}
-function loadFromStorage(key) {
-  try { const d = localStorage.getItem(key); return d ? JSON.parse(d) : null; } catch(e) { return null; }
-}
-
-function generateDemoData() {
-  const records = [];
-  const now = new Date();
-  const statuses = ['Presente', 'Presente', 'Tarde', 'Presente', 'Ausente'];
-  for (let d = 30; d >= 1; d -= 3) {
-    const date = new Date(now); date.setDate(date.getDate() - d);
-    const dateStr = date.toISOString().split('T')[0];
-    students.forEach((s, i) => {
-      const status = statuses[(i + Math.floor(d/3)) % statuses.length];
-      records.push({
-        id: `${dateStr}-${s.id}`,
-        studentId: s.id, name: s.name,
-        date: dateStr,
-        time: status === 'Ausente' ? '—' : `${8 + Math.floor(Math.random()*2)}:${String(Math.floor(Math.random()*60)).padStart(2,'0')}`,
-        status,
-        delivered: status !== 'Ausente' ? Math.random() > 0.3 : false,
-        observations: ''
-      });
-    });
-  }
-  return records;
-}
-
-// ═══════════════════════════════════════════════
-// INIT
-// ═══════════════════════════════════════════════
-window.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('header-date').textContent = new Date().toLocaleDateString('es-AR', {weekday:'long',day:'numeric',month:'long'});
-  students = loadFromStorage('att_students') || students;
-});
-
-// ═══════════════════════════════════════════════
+// ═══════════════════════
 // AUTH
-// ═══════════════════════════════════════════════
+// ═══════════════════════
 function doLogin() {
   const email = document.getElementById('login-email').value;
   const pass = document.getElementById('login-pass').value;
-  if (!email || !pass) { showToast('Ingresa email y contraseña'); return; }
-  APP.user = { email, name: email.split('@')[0] };
-  document.getElementById('login-screen').classList.remove('active');
+  if (!email || !pass) { toast('Ingresá email y contraseña'); return; }
+  S.user = { email, name: email.split('@')[0] };
+  document.getElementById('login-screen')?.classList.remove('active');
+  document.getElementById('s-login').classList.remove('active');
   document.getElementById('bottom-nav').style.display = 'flex';
+  document.getElementById('home-name').textContent = S.user.name;
+  document.getElementById('home-date').textContent = new Date().toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   showScreen('home');
-  showToast('Bienvenido/a ' + APP.user.name);
+  if (S.activeClass) updateActiveBanner();
 }
 
-// ═══════════════════════════════════════════════
+// ═══════════════════════
 // NAVIGATION
-// ═══════════════════════════════════════════════
-function showScreen(name) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById(name + '-screen').classList.add('active');
-  const navBtn = document.getElementById('nav-' + name);
-  if (navBtn) navBtn.classList.add('active');
+// ═══════════════════════
+const SCREENS = { home:'s-home', courses:'s-courses', scan:'s-scan', records:'s-records', stats:'s-stats', assignments:'s-assignments', 'view-assignments':'s-view-assignments' };
+const NAV_MAP = { home:'nav-home', records:'nav-records', stats:'nav-stats', assignments:'nav-assignments', 'view-assignments':'nav-assignments' };
 
+function showScreen(name) {
+  Object.values(SCREENS).forEach(id => { const el = document.getElementById(id); if(el) el.classList.remove('active'); });
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  const target = document.getElementById(SCREENS[name]);
+  if (target) target.classList.add('active');
+  const nav = document.getElementById(NAV_MAP[name]);
+  if (nav) nav.classList.add('active');
   if (name === 'home') renderHome();
-  if (name === 'scan') initScanner();
-  if (name === 'students') renderStudents();
+  if (name === 'courses') renderCourseSelector();
+  if (name === 'records') renderRecords();
   if (name === 'stats') renderStats();
+  if (name === 'assignments') renderAssignments();
+  if (name === 'view-assignments') renderViewAssignments();
   if (name !== 'scan') stopScanner();
 }
 
-// ═══════════════════════════════════════════════
-// CLASS MANAGEMENT
-// ═══════════════════════════════════════════════
-function startClass() {
-  APP.classActive = true;
-  APP.classStart = new Date();
-  APP.scannedThisClass = {};
-  document.getElementById('no-class-view').style.display = 'none';
-  document.getElementById('active-class-view').style.display = '';
-  updateClassBadge();
-  startTimer();
-  document.getElementById('class-start-info').textContent =
-    'Inicio: ' + APP.classStart.toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'}) +
-    ' · Tolerancia hasta ' + new Date(APP.classStart.getTime() + APP.toleranceMs).toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'});
-  renderHome();
-  showToast('Clase iniciada ✓');
-}
-
-async function finishClass() {
-  if (!APP.classActive) return;
-  const date = APP.classStart.toISOString().split('T')[0];
-  const absentRecords = [];
-  students.forEach(s => {
-    if (!APP.scannedThisClass[s.id]) {
-      const r = { id: `${date}-${s.id}-${Date.now()}`, studentId: s.id, name: s.name, date, time: '—', status: 'Ausente', delivered: false, observations: '' };
-      attendance.push(r);
-      absentRecords.push(r);
-    }
-  });
-  saveToStorage('att_records', attendance);
-  APP.classActive = false;
-  APP.classStart = null;
-  clearInterval(APP.timerInterval);
-  document.getElementById('no-class-view').style.display = '';
-  document.getElementById('active-class-view').style.display = 'none';
-  updateClassBadge();
-  renderHome();
-  showToast('Guardando en Google Sheets...');
-  const allClassRecs = [...Object.values(APP.scannedThisClass), ...absentRecords];
-  let ok = 0;
-  for (const r of allClassRecs) { const sent = await sheetsPost(r); if(sent) ok++; }
-  showToast('Clase finalizada · ' + ok + '/' + allClassRecs.length + ' guardados en Sheets ✓');
-}
-
-function startTimer() {
-  clearInterval(APP.timerInterval);
-  APP.timerInterval = setInterval(() => {
-    if (!APP.classStart) return;
-    const elapsed = Date.now() - APP.classStart.getTime();
-    const m = Math.floor(elapsed / 60000);
-    const s = Math.floor((elapsed % 60000) / 1000);
-    document.getElementById('class-timer').textContent =
-      String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
-    updateCounts();
-  }, 1000);
-}
-
-function updateClassBadge() {
-  const el = document.getElementById('class-badge');
-  const el2 = document.getElementById('scan-class-badge');
-  if (APP.classActive) {
-    const html = '<span class="badge green"><span class="dot"></span>En curso</span>';
-    if (el) el.innerHTML = html;
-    if (el2) el2.innerHTML = html;
-  } else {
-    if (el) el.innerHTML = '';
-    if (el2) el2.innerHTML = '<span class="badge red">Sin clase</span>';
-  }
-}
-
-function updateCounts() {
-  const scanned = Object.values(APP.scannedThisClass);
-  document.getElementById('cnt-present').textContent = scanned.filter(r=>r.status==='Presente').length;
-  document.getElementById('cnt-late').textContent = scanned.filter(r=>r.status==='Tarde').length;
-  document.getElementById('cnt-absent').textContent = students.length - scanned.length;
-}
-
-// ═══════════════════════════════════════════════
-// RENDER HOME
-// ═══════════════════════════════════════════════
+// ═══════════════════════
+// HOME
+// ═══════════════════════
 function renderHome() {
-  updateClassBadge();
-  if (!APP.classActive) {
-    const el = document.getElementById('student-list-home');
-    el.innerHTML = students.map(s => studentRow(s, null)).join('');
+  updateActiveBanner();
+}
+
+function updateActiveBanner() {
+  const banner = document.getElementById('active-banner');
+  if (!S.activeClass) { banner.style.display = 'none'; return; }
+  banner.style.display = '';
+  const c = S.courses.find(x => x.id === S.activeClass.courseId);
+  document.getElementById('banner-course-name').textContent = S.activeClass.courseName + ' — En curso';
+  const scanned = Object.keys(S.activeClass.scanned).length;
+  const total = c ? c.students.length : 0;
+  document.getElementById('banner-info').textContent = `${scanned} de ${total} alumnos escaneados`;
+}
+
+// ═══════════════════════
+// COURSE MANAGEMENT
+// ═══════════════════════
+function goStartAttendance() {
+  if (S.activeClass) { goScanActive(); return; }
+  if (S.courses.length === 0) {
+    toast('Primero configurá un curso');
+    showScreen('courses');
     return;
   }
-  updateCounts();
-  // scanned
-  const scannedEl = document.getElementById('scanned-list');
-  const scanned = Object.values(APP.scannedThisClass);
-  if (scanned.length === 0) {
-    scannedEl.innerHTML = '<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9a2 2 0 012-2h14a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/></svg><p>Aún no hay alumnos escaneados</p></div>';
-  } else {
-    scannedEl.innerHTML = scanned.map(r => {
-      const s = students.find(x=>x.id===r.studentId) || {};
-      return studentRow(s, r);
-    }).join('');
-  }
-  // pending
-  const pendingEl = document.getElementById('pending-list');
-  const pending = students.filter(s => !APP.scannedThisClass[s.id]);
-  pendingEl.innerHTML = pending.length === 0
-    ? '<div class="student-item"><span style="color:var(--green);font-size:13px">✓ Todos los alumnos escaneados</span></div>'
-    : pending.map(s => studentRow(s, null)).join('');
+  showScreen('courses');
 }
 
-function studentRow(s, record) {
-  const initials = (s.name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-  const statusBadge = record
-    ? `<span class="badge ${record.status==='Presente'?'green':record.status==='Tarde'?'yellow':'red'}">${record.status}</span>`
-    : '<span style="font-size:11px;color:var(--text3)">—</span>';
-  const time = record && record.time !== '—' ? record.time : '';
-  return `<div class="student-item" onclick="openStudentModal('${s.id}')">
-    <div class="avatar" style="background:${s.color}22;color:${s.color}">${initials}</div>
-    <div class="student-info">
-      <div class="student-name">${s.name}</div>
-      <div class="student-id">${s.id}</div>
-    </div>
-    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-      ${statusBadge}
-      <div class="student-time">${time}</div>
-    </div>
-  </div>`;
+function goScanActive() {
+  const c = S.courses.find(x => x.id === S.activeClass.courseId);
+  if (!c) return;
+  startScanScreen(c);
 }
 
-// ═══════════════════════════════════════════════
-// SCANNER
-// ═══════════════════════════════════════════════
-function initScanner() {
-  const noClassMsg = document.getElementById('no-class-scan-msg');
-  const scanArea = document.getElementById('qr-reader');
-  const resultArea = document.getElementById('scan-result-area');
-  updateClassBadge();
-
-  if (!APP.classActive) {
-    noClassMsg.style.display = '';
-    scanArea.style.display = 'none';
-    resultArea.style.display = 'none';
+function renderCourseSelector() {
+  const list = document.getElementById('course-selector-list');
+  if (S.courses.length === 0) {
+    list.innerHTML = '<div class="empty-state" style="padding:32px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg><p>No hay cursos todavía.<br>Toca "+ Curso" para agregar.</p></div>';
     return;
   }
-  noClassMsg.style.display = 'none';
-  scanArea.style.display = '';
-
-  if (APP.scannerRunning) return;
-
-  APP.scanner = new Html5Qrcode('qr-reader');
-  APP.scanner.start(
-    { facingMode: 'environment' },
-    { fps: 10, qrbox: { width: 250, height: 250 } },
-    (decodedText) => onQRScan(decodedText),
-    () => {}
-  ).then(() => { APP.scannerRunning = true; }).catch(err => {
-    scanArea.innerHTML = `<div class="card" style="text-align:center;color:var(--yellow)">
-      <p>⚠️ No se pudo acceder a la cámara</p>
-      <p style="font-size:12px;color:var(--text3);margin-top:8px">${err}</p>
-      <button class="btn btn-ghost" onclick="testScanDemo()" style="margin-top:12px">Modo demo (sin cámara)</button>
-    </div>`;
-  });
-}
-
-function stopScanner() {
-  if (APP.scanner && APP.scannerRunning) {
-    APP.scanner.stop().catch(()=>{});
-    APP.scannerRunning = false;
-  }
-}
-
-function testScanDemo() {
-  const avail = students.filter(s => !APP.scannedThisClass[s.id]);
-  if (avail.length === 0) { showToast('Todos ya fueron escaneados'); return; }
-  onQRScan('QR_' + avail[0].id);
-}
-
-function onQRScan(raw) {
-  if (!APP.classActive) { showToast('No hay clase activa'); return; }
-  // parse: QR_STU-001
-  const studentId = raw.startsWith('QR_') ? raw.replace('QR_', '') : raw;
-  const student = students.find(s => s.id === studentId);
-
-  if (!student) {
-    showScanResult('err', '✗', 'QR desconocido', raw);
-    vibrateAndBeep('err');
-    return;
-  }
-  if (APP.scannedThisClass[studentId]) {
-    showScanResult('dup', '⚠️', student.name, 'Ya registrado en esta clase');
-    vibrateAndBeep('dup');
-    return;
-  }
-
-  const now = new Date();
-  const elapsed = now.getTime() - APP.classStart.getTime();
-  const status = elapsed <= APP.toleranceMs ? 'Presente' : 'Tarde';
-  const timeStr = now.toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'});
-  const dateStr = now.toISOString().split('T')[0];
-
-  const record = {
-    id: `${dateStr}-${studentId}`,
-    studentId, name: student.name,
-    date: dateStr, time: timeStr, status,
-    delivered: false, observations: ''
-  };
-
-  APP.scannedThisClass[studentId] = record;
-  attendance.push(record);
-  saveToStorage('att_records', attendance);
-
-  showScanResult('ok',
-    status === 'Presente' ? '✓' : '⏱',
-    student.name,
-    status + ' · ' + timeStr
-  );
-  vibrateAndBeep('ok');
-  updateCounts();
-}
-
-function showScanResult(type, icon, name, status) {
-  const el = document.getElementById('scan-result-area');
-  el.style.display = '';
-  el.innerHTML = `<div class="scan-result ${type} fade-in">
-    <div class="scan-result-icon">${icon}</div>
-    <div class="scan-result-name">${name}</div>
-    <div class="scan-result-status">${status}</div>
-  </div>`;
-  setTimeout(() => { el.style.display = 'none'; }, 3000);
-}
-
-function vibrateAndBeep(type) {
-  try { navigator.vibrate && navigator.vibrate(type === 'ok' ? [50] : [50,50,50]); } catch(e){}
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.frequency.value = type === 'ok' ? 880 : type === 'dup' ? 440 : 220;
-    gain.gain.setValueAtTime(0.3, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-    osc.start(); osc.stop(ctx.currentTime + 0.3);
-  } catch(e){}
-}
-
-// ═══════════════════════════════════════════════
-// STUDENTS SCREEN
-// ═══════════════════════════════════════════════
-function renderStudents() {
-  const el = document.getElementById('students-full-list');
-  el.innerHTML = students.map(s => {
-    const initials = s.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-    return `<div class="student-item">
-      <div class="avatar" style="background:${s.color}22;color:${s.color}">${initials}</div>
-      <div class="student-info">
-        <div class="student-name">${s.name}</div>
-        <div class="student-id">${s.id}</div>
+  list.innerHTML = S.courses.map(c => `
+    <div class="course-item" onclick="selectCourse('${c.id}')">
+      <div class="course-dot" style="background:${c.color}"></div>
+      <div class="course-info">
+        <div class="course-name">${c.name}</div>
+        <div class="course-sched">${c.schedules.map(s=>`${s.day} ${s.time}`).join(' · ')}</div>
       </div>
-      <button class="badge blue" onclick="showQR('${s.id}')">Ver QR</button>
-    </div>`;
-  }).join('');
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+        <span class="course-count">${c.students.length} alumnos</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
+    </div>`).join('');
 }
 
-function openAddStudent() { openModal('modal-add-student'); }
-
-function addStudent() {
-  const name = document.getElementById('new-student-name').value.trim();
-  const id = document.getElementById('new-student-id').value.trim();
-  if (!name || !id) { showToast('Completa nombre e ID'); return; }
-  if (students.find(s => s.id === id)) { showToast('ID ya existe'); return; }
-  const colors = ['#38bdf8','#a78bfa','#22c55e','#f59e0b','#ef4444','#ec4899','#14b8a6','#f97316'];
-  const color = colors[students.length % colors.length];
-  students.push({ id, name, color });
-  saveToStorage('att_students', students);
-  closeModal('modal-add-student');
-  document.getElementById('new-student-name').value = '';
-  document.getElementById('new-student-id').value = '';
-  renderStudents();
-  showQR(id);
-  showToast('Alumno agregado ✓');
+function selectCourse(courseId) {
+  const c = S.courses.find(x => x.id === courseId);
+  if (!c) return;
+  if (S.activeClass && S.activeClass.courseId !== courseId) {
+    toast('Ya hay una clase activa de ' + S.activeClass.courseName);
+    return;
+  }
+  startScanScreen(c);
 }
 
-function showQR(studentId) {
-  const s = students.find(x => x.id === studentId);
-  if (!s) return;
-  APP.currentQRStudent = s;
-  document.getElementById('modal-qr-title').textContent = s.name;
-  document.getElementById('modal-qr-id').textContent = s.id;
+function selectColor(el) {
+  document.querySelectorAll('.color-opt').forEach(o => o.style.borderColor = 'transparent');
+  el.style.borderColor = '#fff';
+  S.selectedColor = el.dataset.color;
+}
+
+let schedRows = 0;
+function addScheduleRow() {
+  schedRows++;
+  const container = document.getElementById('nc-schedules');
+  const days = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:8px;align-items:center';
+  row.id = 'sched-row-' + schedRows;
+  row.innerHTML = `
+    <select style="flex:1" id="sched-day-${schedRows}">
+      ${days.map(d=>`<option>${d}</option>`).join('')}
+    </select>
+    <input type="time" id="sched-time-${schedRows}" style="flex:1" value="08:00">
+    <button onclick="document.getElementById('sched-row-${schedRows}').remove()" style="background:var(--red-bg);border:none;color:var(--red);border-radius:var(--r-sm);padding:8px 10px;cursor:pointer;font-size:14px">✕</button>`;
+  container.appendChild(row);
+}
+
+function saveCourse() {
+  const name = document.getElementById('nc-name').value.trim();
+  if (!name) { toast('Ingresá un nombre para el curso'); return; }
+  const studentsRaw = document.getElementById('nc-students').value.trim();
+  const students = studentsRaw.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
+    const parts = l.split(',');
+    return { id: parts[0]?.trim() || '', name: parts.slice(1).join(',').trim() };
+  }).filter(s => s.id && s.name);
+  const schedules = [];
+  document.querySelectorAll('[id^="sched-row-"]').forEach(row => {
+    const dayEl = row.querySelector('[id^="sched-day-"]');
+    const timeEl = row.querySelector('[id^="sched-time-"]');
+    if (dayEl && timeEl) schedules.push({ day: dayEl.value, time: timeEl.value });
+  });
+  const course = { id: 'C' + Date.now(), name, color: S.selectedColor, schedules, students };
+  S.courses.push(course);
+  save('ad_courses', S.courses);
+  closeModal('modal-add-course');
+  document.getElementById('nc-name').value = '';
+  document.getElementById('nc-students').value = '';
+  document.getElementById('nc-schedules').innerHTML = '';
+  schedRows = 0;
+  renderCourseSelector();
+  toast('Curso "' + name + '" creado ✓');
+}
+
+function renderManageCourses() {
+  const el = document.getElementById('manage-courses-body');
+  if (S.courses.length === 0) { el.innerHTML = '<p style="color:var(--text3);text-align:center;padding:20px">No hay cursos</p>'; return; }
+  el.innerHTML = S.courses.map(c => `
+    <div style="display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid var(--line)">
+      <div style="width:10px;height:10px;border-radius:50%;background:${c.color};flex-shrink:0"></div>
+      <div style="flex:1">
+        <div style="font-size:14px;font-weight:600">${c.name}</div>
+        <div style="font-size:11px;color:var(--text3)">${c.students.length} alumnos</div>
+      </div>
+      <button onclick="showCourseQRs('${c.id}')" style="background:rgba(88,166,255,0.1);color:var(--accent);border:none;border-radius:var(--r-sm);padding:6px 12px;font-size:12px;cursor:pointer">QRs</button>
+      <button onclick="deleteCourse('${c.id}')" style="background:var(--red-bg);color:var(--red);border:none;border-radius:var(--r-sm);padding:6px 12px;font-size:12px;cursor:pointer">Eliminar</button>
+    </div>`).join('');
+}
+
+function deleteCourse(id) {
+  if (!confirm('¿Eliminar este curso?')) return;
+  S.courses = S.courses.filter(c => c.id !== id);
+  save('ad_courses', S.courses);
+  renderManageCourses();
+  renderCourseSelector();
+  toast('Curso eliminado');
+}
+
+function showCourseQRs(courseId) {
+  const c = S.courses.find(x => x.id === courseId);
+  if (!c) return;
+  closeModal('modal-manage-courses');
   openModal('modal-qr');
+  // Show first student QR
+  if (c.students.length > 0) showQR(c.students[0].id, c.students[0].name, c.name);
+  // List all students for selection
   setTimeout(() => {
-    const canvas = document.getElementById('qr-canvas');
-    QRCode.toCanvas(canvas, 'QR_' + s.id, {
-      width: 220, margin: 2,
-      color: { dark: '#0f172a', light: '#ffffff' }
-    }, err => { if(err) console.error(err); });
+    const body = document.querySelector('#modal-qr .modal-body');
+    const existing = body.innerHTML;
+    body.innerHTML = existing + `<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:12px">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:8px">Seleccionar alumno:</div>
+      ${c.students.map(s=>`<button onclick="showQR('${s.id}','${s.name}','${c.name}')" class="btn btn-ghost btn-sm" style="margin-bottom:6px;justify-content:flex-start">${s.name} <span style="color:var(--text3);margin-left:auto;font-size:10px">${s.id}</span></button>`).join('')}
+    </div>`;
   }, 100);
 }
 
-function downloadQR() {
-  const canvas = document.getElementById('qr-canvas');
-  const a = document.createElement('a');
-  a.download = `QR_${APP.currentQRStudent?.id || 'alumno'}.png`;
-  a.href = canvas.toDataURL();
-  a.click();
-  showToast('QR descargado');
+let currentQRStudent = null;
+function showQR(id, name, courseName) {
+  currentQRStudent = { id, name };
+  document.getElementById('modal-qr-title').textContent = name;
+  document.getElementById('modal-qr-sub').textContent = id + ' · ' + courseName;
+  const canvas = document.getElementById('modal-qr-canvas');
+  QRCode.toCanvas(canvas, 'ADQR_' + id, { width: 220, margin: 2, color: { dark:'#0D1117', light:'#ffffff' } }, e => { if(e) console.error(e); });
 }
 
-// ═══════════════════════════════════════════════
-// STATS
-// ═══════════════════════════════════════════════
-function renderStats() {
+function downloadQR() {
+  const canvas = document.getElementById('modal-qr-canvas');
+  const a = document.createElement('a');
+  a.download = 'QR_' + (currentQRStudent?.id || 'alumno') + '.png';
+  a.href = canvas.toDataURL(); a.click();
+  toast('QR descargado ✓');
+}
+
+// ═══════════════════════
+// SCAN / ATTENDANCE
+// ═══════════════════════
+function startScanScreen(course) {
+  if (!S.activeClass) {
+    S.activeClass = { courseId: course.id, courseName: course.name, startTime: new Date(), scanned: {} };
+    save('ad_active_class', { ...S.activeClass, startTime: S.activeClass.startTime.toISOString() });
+  }
+  showScreen('scan');
+  document.getElementById('scan-course-title').textContent = course.name;
+  const toleranceEnd = new Date(S.activeClass.startTime.getTime() + TOLERANCE_MS);
+  document.getElementById('scan-tolerance-info').textContent =
+    'Inicio ' + S.activeClass.startTime.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}) +
+    ' · Tolerancia hasta ' + toleranceEnd.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+  startTimer();
+  renderScanLists(course);
+  initScanner();
+}
+
+function startTimer() {
+  clearInterval(S.timerInterval);
+  S.timerInterval = setInterval(() => {
+    if (!S.activeClass) return;
+    const elapsed = Date.now() - S.activeClass.startTime.getTime();
+    const m = Math.floor(elapsed/60000);
+    const s = Math.floor((elapsed%60000)/1000);
+    const timerEl = document.getElementById('scan-timer');
+    if (timerEl) timerEl.textContent = String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+    // Tolerance bar
+    const pct = Math.min(100, (elapsed / TOLERANCE_MS) * 100);
+    const fill = document.getElementById('tolerance-fill');
+    if (fill) { fill.style.width = pct + '%'; fill.style.background = pct >= 100 ? 'var(--red)' : pct > 70 ? 'var(--yellow)' : 'var(--green)'; }
+    updateScanCounts();
+  }, 1000);
+}
+
+function updateScanCounts() {
+  if (!S.activeClass) return;
+  const scanned = Object.values(S.activeClass.scanned);
+  const c = S.courses.find(x => x.id === S.activeClass?.courseId);
+  const totalStudents = c ? c.students.length : 0;
+  const p = document.getElementById('sc-present'); if(p) p.textContent = scanned.filter(r=>r.status==='Presente').length;
+  const l = document.getElementById('sc-late'); if(l) l.textContent = scanned.filter(r=>r.status==='Presente con retraso').length;
+  const a = document.getElementById('sc-absent'); if(a) a.textContent = totalStudents - scanned.length;
+}
+
+function renderScanLists(course) {
+  const scanned = Object.values(S.activeClass?.scanned || {});
+  // Scanned
+  const sc = document.getElementById('scanned-card');
+  if (sc) {
+    if (scanned.length === 0) {
+      sc.innerHTML = '<div class="empty-state" style="padding:24px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><p>Esperando escaneos...</p></div>';
+    } else {
+      sc.innerHTML = scanned.map(r => studentRowHTML({ id: r.studentId, name: r.studentName, color: course.color }, r)).join('');
+    }
+  }
+  // Pending
+  const pc = document.getElementById('pending-card');
+  if (pc) {
+    const pending = course.students.filter(s => !S.activeClass?.scanned[s.id]);
+    pc.innerHTML = pending.length === 0
+      ? '<div class="student-row"><span style="color:var(--green);font-size:13px;padding:4px 0">✓ Todos escaneados</span></div>'
+      : pending.map(s => studentRowHTML(s, null)).join('');
+  }
+  updateScanCounts();
+}
+
+function studentRowHTML(s, record) {
+  const initials = (s.name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  const color = s.color || '#58A6FF';
+  const badge = record
+    ? `<span class="badge ${record.status==='Presente'?'badge-green':record.status==='Presente con retraso'?'badge-yellow':'badge-red'}">${record.status==='Presente con retraso'?'Tarde':record.status}</span>`
+    : '<span style="font-size:11px;color:var(--text3)">—</span>';
+  return `<div class="student-row">
+    <div class="avatar" style="background:${color}22;color:${color}">${initials}</div>
+    <div class="s-info"><div class="s-name">${s.name}</div><div class="s-id">${s.id||''}</div></div>
+    <div class="s-right">${badge}${record?`<div class="s-time">${record.time}</div>`:''}</div>
+  </div>`;
+}
+
+function initScanner() {
+  if (S.scannerOn) return;
+  const reader = document.getElementById('qr-reader');
+  S.scanner = new Html5Qrcode('qr-reader');
+  S.scanner.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: { width: 260, height: 260 } },
+    onQRDetected, () => {}
+  ).then(() => { S.scannerOn = true; document.getElementById('demo-scan-btn').style.display = 'none'; })
+   .catch(() => { reader.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text2)"><p style="margin-bottom:12px">⚠️ Cámara no disponible</p><p style="font-size:12px;color:var(--text3)">Usá el botón demo abajo</p></div>'; document.getElementById('demo-scan-btn').style.display = ''; });
+}
+
+function stopScanner() {
+  if (S.scanner && S.scannerOn) { S.scanner.stop().catch(()=>{}); S.scannerOn = false; }
+  clearInterval(S.timerInterval);
+}
+
+function stopScanAndGoHome() { stopScanner(); showScreen('home'); }
+
+function demoScan() {
+  if (!S.activeClass) return;
+  const c = S.courses.find(x => x.id === S.activeClass.courseId);
+  if (!c) return;
+  const pending = c.students.filter(s => !S.activeClass.scanned[s.id]);
+  if (pending.length === 0) { toast('Todos ya fueron escaneados'); return; }
+  onQRDetected('ADQR_' + pending[0].id);
+}
+
+function onQRDetected(raw) {
+  if (!S.activeClass) { toast('No hay clase activa'); return; }
+  const studentId = raw.startsWith('ADQR_') ? raw.replace('ADQR_','') : raw;
+  const c = S.courses.find(x => x.id === S.activeClass.courseId);
+  if (!c) return;
+  const student = c.students.find(s => s.id === studentId);
+  if (!student) {
+    showScanFeedback('err','✗','QR desconocido','No corresponde a ningún alumno');
+    beep('err'); return;
+  }
+  if (S.activeClass.scanned[studentId]) {
+    showScanFeedback('dup','↺',student.name,'Ya registrado en esta clase');
+    beep('dup'); return;
+  }
   const now = new Date();
-  const months = [];
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    months.push({ label: d.toLocaleDateString('es-AR',{month:'short',year:'2-digit'}), value: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}` });
+  const elapsed = now - S.activeClass.startTime;
+  const status = elapsed <= TOLERANCE_MS ? 'Presente' : 'Presente con retraso';
+  const timeStr = now.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+  const dateStr = now.toISOString().split('T')[0];
+  const record = { studentId, studentName: student.name, courseId: c.id, courseName: c.name, date: dateStr, time: timeStr, status };
+  S.activeClass.scanned[studentId] = record;
+  save('ad_active_class', { ...S.activeClass, startTime: S.activeClass.startTime.toISOString() });
+  S.attendance.push(record);
+  save('ad_attendance', S.attendance);
+  showScanFeedback(status==='Presente'?'ok':'late', status==='Presente'?'✓':'⏱', student.name, status + ' · ' + timeStr);
+  beep('ok');
+  renderScanLists(c);
+}
+
+function showScanFeedback(type, icon, name, status) {
+  const el = document.getElementById('scan-feedback');
+  el.style.display = '';
+  const colors = { ok:'var(--green)', late:'var(--yellow)', dup:'var(--accent)', err:'var(--red)' };
+  el.innerHTML = `<div class="scan-feedback ${type} fade-in">
+    <div style="font-size:36px;margin-bottom:6px">${icon}</div>
+    <div class="scan-feedback-name" style="color:${colors[type]}">${name}</div>
+    <div class="scan-feedback-status">${status}</div>
+  </div>`;
+  setTimeout(() => { el.style.display = 'none'; }, 2500);
+}
+
+async function closeAttendance() {
+  if (!S.activeClass) return;
+  const c = S.courses.find(x => x.id === S.activeClass.courseId);
+  if (!c) return;
+  const date = new Date().toISOString().split('T')[0];
+  const absent = c.students.filter(s => !S.activeClass.scanned[s.id]);
+  absent.forEach(s => {
+    const r = { studentId: s.id, studentName: s.name, courseId: c.id, courseName: c.name, date, time:'—', status:'Ausente' };
+    S.attendance.push(r);
+  });
+  save('ad_attendance', S.attendance);
+  const allRecs = [...Object.values(S.activeClass.scanned), ...absent.map(s=>({ studentId:s.id, studentName:s.name, courseId:c.id, courseName:c.name, date, time:'—', status:'Ausente' }))];
+  S.activeClass = null;
+  localStorage.removeItem('ad_active_class');
+  stopScanner();
+  showScreen('home');
+  toast('Guardando en Google Sheets...');
+  let ok = 0;
+  for (const r of allRecs) {
+    const body = { name: r.studentName, course: r.courseName, date: r.date, time: r.time, status: r.status };
+    if (await sheetsPost(body)) ok++;
+  }
+  toast('Clase cerrada · ' + ok + '/' + allRecs.length + ' guardados en Sheets ✓');
+}
+
+// ═══════════════════════
+// DAILY RECORDS
+// ═══════════════════════
+function goViewRecords() { showScreen('records'); }
+
+function renderRecords() {
+  const today = new Date().toISOString().split('T')[0];
+  const todayRecs = S.attendance.filter(r => r.date === today);
+  const courses = [...new Set(todayRecs.map(r=>r.courseName))];
+  // Course filter
+  const filterEl = document.getElementById('records-course-filter');
+  filterEl.innerHTML = '<button class="filter-chip active" onclick="filterRecords(\'all\',this)">Todos</button>' +
+    courses.map(n=>`<button class="filter-chip" onclick="filterRecords('${n}',this)">${n}</button>`).join('');
+  renderRecordsList('all', todayRecs);
+}
+
+function filterRecords(course, btn) {
+  document.querySelectorAll('#records-course-filter .filter-chip').forEach(c=>c.classList.remove('active'));
+  btn.classList.add('active');
+  const today = new Date().toISOString().split('T')[0];
+  const recs = S.attendance.filter(r => r.date === today);
+  renderRecordsList(course, recs);
+}
+
+function renderRecordsList(courseFilter, recs) {
+  const filtered = courseFilter==='all' ? recs : recs.filter(r=>r.courseName===courseFilter);
+  const el = document.getElementById('records-list');
+  if (filtered.length===0) { el.innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg><p>No hay registros para hoy</p></div>'; return; }
+  const byStatus = { Presente: filtered.filter(r=>r.status==='Presente'), 'Presente con retraso': filtered.filter(r=>r.status==='Presente con retraso'), Ausente: filtered.filter(r=>r.status==='Ausente') };
+  el.innerHTML = Object.entries(byStatus).filter(([,v])=>v.length>0).map(([status, recs]) => `
+    <div class="section-label">${status} (${recs.length})</div>
+    <div class="card" style="padding:0">
+      ${recs.map(r => {
+        const color = S.courses.find(c=>c.id===r.courseId)?.color || '#58A6FF';
+        const initials = r.studentName.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+        const badge = status==='Presente' ? 'badge-green' : status==='Presente con retraso' ? 'badge-yellow' : 'badge-red';
+        const label = status==='Presente con retraso' ? 'Tarde' : status;
+        return `<div class="student-row">
+          <div class="avatar" style="background:${color}22;color:${color}">${initials}</div>
+          <div class="s-info"><div class="s-name">${r.studentName}</div><div class="s-id">${r.courseName}</div></div>
+          <div class="s-right"><span class="badge ${badge}">${label}</span><div class="s-time">${r.time}</div></div>
+        </div>`;
+      }).join('')}
+    </div>`).join('');
+}
+
+// ═══════════════════════
+// SYNC
+// ═══════════════════════
+async function goSync() {
+  toast('Sincronizando con Google Sheets...');
+  const data = await sheetsGet();
+  if (!data || !Array.isArray(data)) { toast('Sin conexión o Sheets vacío'); return; }
+  const remote = data.map(r=>({ studentId:'', studentName:r['Nombre']||r['name']||'', courseId:'', courseName:r['Curso']||r['course']||'', date:r['Fecha']||r['date']||'', time:r['Hora']||r['time']||'', status:r['Estado']||r['status']||'' }));
+  const localKeys = new Set(S.attendance.map(r=>r.studentName+'-'+r.date+'-'+r.status));
+  let added = 0;
+  remote.forEach(r => { if(!localKeys.has(r.studentName+'-'+r.date+'-'+r.status)) { S.attendance.push(r); added++; } });
+  if (added>0) { save('ad_attendance',S.attendance); toast(added + ' registros importados de Sheets ✓'); }
+  else toast('Todo al día. Sin cambios nuevos.');
+}
+
+async function syncStats() { await goSync(); renderStats(); }
+
+// ═══════════════════════
+// STATISTICS
+// ═══════════════════════
+function renderStats() {
+  renderStatsCourseFilter();
+  renderStatsContent();
+}
+
+function renderStatsCourseFilter() {
+  const el = document.getElementById('stats-course-filter');
+  el.innerHTML = '<button class="filter-chip active" onclick="setStatsCourse(\'all\',this)">Todos</button>' +
+    S.courses.map(c=>`<button class="filter-chip" onclick="setStatsCourse('${c.id}',this)">${c.name}</button>`).join('');
+}
+
+function setStatsCourse(id, btn) {
+  document.querySelectorAll('#stats-course-filter .filter-chip').forEach(c=>c.classList.remove('active'));
+  btn.classList.add('active');
+  S.statsCourse = id; renderStatsContent();
+}
+
+function setStatsTab(tab, btn) {
+  document.querySelectorAll('#stats-tabs .tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  S.statsTab = tab; renderStatsContent();
+}
+
+function getFilteredAttendance() {
+  let recs = S.attendance;
+  if (S.statsCourse !== 'all') recs = recs.filter(r => r.courseId === S.statsCourse);
+  if (S.statsTab === 'monthly') {
+    const now = new Date(); const ym = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+    recs = recs.filter(r => r.date && r.date.startsWith(ym));
+  }
+  if (S.statsTab === 'yearly') {
+    const year = new Date().getFullYear().toString();
+    recs = recs.filter(r => r.date && r.date.startsWith(year));
+  }
+  return recs;
+}
+
+function renderStatsContent() {
+  const recs = getFilteredAttendance();
+  const present = recs.filter(r=>r.status==='Presente').length;
+  const late = recs.filter(r=>r.status==='Presente con retraso').length;
+  const absent = recs.filter(r=>r.status==='Ausente').length;
+  document.getElementById('st-present').textContent = present;
+  document.getElementById('st-late').textContent = late;
+  document.getElementById('st-absent').textContent = absent;
+
+  // Chart
+  if (S.charts.stats) S.charts.stats.destroy();
+  const ctx = document.getElementById('stats-chart').getContext('2d');
+
+  if (S.statsTab === 'general' || S.statsTab === 'yearly') {
+    S.charts.stats = new Chart(ctx, {
+      type:'doughnut',
+      data:{ labels:['Presente','Tarde','Ausente'], datasets:[{ data:[present,late,absent], backgroundColor:['rgba(63,185,80,0.7)','rgba(210,153,34,0.7)','rgba(248,81,73,0.7)'], borderColor:['#3FB950','#D29922','#F85149'], borderWidth:2 }] },
+      options:{ responsive:true,maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ color:'#8B949E', font:{size:11}, boxWidth:12, padding:12 } } } }
+    });
+  } else {
+    // Monthly bar by week
+    const weeks = ['Semana 1','Semana 2','Semana 3','Semana 4'];
+    const weekData = [0,0,0,0].map((_,i) => {
+      const w = recs.filter(r => { const d = parseInt(r.date?.split('-')[2]||0); return d > i*7 && d <= (i+1)*7; });
+      return { p: w.filter(x=>x.status==='Presente').length, l: w.filter(x=>x.status==='Presente con retraso').length, a: w.filter(x=>x.status==='Ausente').length };
+    });
+    S.charts.stats = new Chart(ctx, {
+      type:'bar',
+      data:{ labels:weeks, datasets:[
+        { label:'Presente', data:weekData.map(w=>w.p), backgroundColor:'rgba(63,185,80,0.6)', borderColor:'#3FB950', borderWidth:1.5, borderRadius:4 },
+        { label:'Tarde', data:weekData.map(w=>w.l), backgroundColor:'rgba(210,153,34,0.6)', borderColor:'#D29922', borderWidth:1.5, borderRadius:4 },
+        { label:'Ausente', data:weekData.map(w=>w.a), backgroundColor:'rgba(248,81,73,0.6)', borderColor:'#F85149', borderWidth:1.5, borderRadius:4 },
+      ]},
+      options:{ responsive:true,maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ color:'#8B949E', font:{size:11}, boxWidth:12 } } }, scales:{ x:{ ticks:{color:'#484F58',fontSize:10}, grid:{color:'rgba(255,255,255,0.04)'} }, y:{ ticks:{color:'#484F58',fontSize:10}, grid:{color:'rgba(255,255,255,0.04)'} } } }
+    });
   }
 
-  const filtersEl = document.getElementById('month-filters');
-  filtersEl.innerHTML = '<button class="filter-chip active" onclick="setStatsFilter(this,\'all\')">Todo</button>' +
-    months.map(m => `<button class="filter-chip" onclick="setStatsFilter(this,'${m.value}')">${m.label}</button>`).join('');
-
-  drawStats();
-}
-
-function setStatsFilter(btn, val) {
-  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
-  btn.classList.add('active');
-  APP.statsFilter = val;
-  drawStats();
-}
-
-function getFilteredRecords() {
-  if (APP.statsFilter === 'all') return attendance;
-  return attendance.filter(r => r.date.startsWith(APP.statsFilter));
-}
-
-function drawStats() {
-  const recs = getFilteredRecords();
-  const present = recs.filter(r=>r.status==='Presente').length;
-  const late = recs.filter(r=>r.status==='Tarde').length;
-  const absent = recs.filter(r=>r.status==='Ausente').length;
-  document.getElementById('stats-present').textContent = present;
-  document.getElementById('stats-late').textContent = late;
-  document.getElementById('stats-absent').textContent = absent;
-
-  // per-student data
-  const perStudent = students.map(s => {
-    const sRecs = recs.filter(r => r.studentId === s.id);
-    return {
-      name: s.name.split(' ')[0],
-      color: s.color,
-      present: sRecs.filter(r=>r.status==='Presente').length,
-      late: sRecs.filter(r=>r.status==='Tarde').length,
-      absent: sRecs.filter(r=>r.status==='Ausente').length,
-      total: sRecs.length,
-    };
+  // Per-student table
+  const allStudents = [];
+  S.courses.forEach(c => {
+    if (S.statsCourse !== 'all' && c.id !== S.statsCourse) return;
+    c.students.forEach(s => {
+      if (!allStudents.find(x=>x.id===s.id)) allStudents.push({ ...s, courseName: c.name });
+    });
   });
 
-  // Bar chart
-  if (APP.charts.bar) APP.charts.bar.destroy();
-  const barCtx = document.getElementById('bar-chart').getContext('2d');
-  APP.charts.bar = new Chart(barCtx, {
-    type: 'bar',
-    data: {
-      labels: perStudent.map(s=>s.name),
-      datasets: [
-        { label:'Presente', data: perStudent.map(s=>s.present), backgroundColor:'#22c55e44', borderColor:'#22c55e', borderWidth:1.5, borderRadius:4 },
-        { label:'Tarde', data: perStudent.map(s=>s.late), backgroundColor:'#f59e0b44', borderColor:'#f59e0b', borderWidth:1.5, borderRadius:4 },
-        { label:'Ausente', data: perStudent.map(s=>s.absent), backgroundColor:'#ef444444', borderColor:'#ef4444', borderWidth:1.5, borderRadius:4 },
-      ]
-    },
-    options: {
-      responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ position:'bottom', labels:{ color:'#94a3b8', font:{size:11}, boxWidth:12, padding:12 } } },
-      scales:{
-        x:{ ticks:{color:'#64748b',font:{size:10}}, grid:{color:'rgba(148,163,184,0.08)'} },
-        y:{ ticks:{color:'#64748b',font:{size:10}}, grid:{color:'rgba(148,163,184,0.08)'} }
-      }
-    }
-  });
+  const tbody = document.getElementById('stats-tbody');
+  tbody.innerHTML = allStudents.map(s => {
+    const sRecs = recs.filter(r => r.studentName === s.name || r.studentId === s.id);
+    const p = sRecs.filter(r=>r.status==='Presente').length;
+    const l = sRecs.filter(r=>r.status==='Presente con retraso').length;
+    const a = sRecs.filter(r=>r.status==='Ausente').length;
+    const total = sRecs.length || 1;
+    const pct = Math.round((p+l)/total*100);
+    const color = pct >= 75 ? 'var(--green)' : pct >= 50 ? 'var(--yellow)' : 'var(--red)';
+    return `<tr>
+      <td><div style="font-weight:600;font-size:13px">${s.name}</div><div style="font-size:10px;color:var(--text3)">${s.courseName}</div></td>
+      <td style="color:var(--green);font-weight:600">${p}</td>
+      <td style="color:var(--yellow);font-weight:600">${l}</td>
+      <td style="color:var(--red);font-weight:600">${a}</td>
+      <td><div style="color:${color};font-weight:700;font-size:13px">${pct}%</div><div class="pct-bar"><div class="pct-fill" style="width:${pct}%;background:${color}"></div></div></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">Sin datos</td></tr>';
+}
 
-  // Pie chart
-  if (APP.charts.pie) APP.charts.pie.destroy();
-  const pieCtx = document.getElementById('pie-chart').getContext('2d');
-  APP.charts.pie = new Chart(pieCtx, {
-    type: 'doughnut',
-    data: {
-      labels: ['Presente','Tarde','Ausente'],
-      datasets:[{ data:[present,late,absent], backgroundColor:['#22c55e55','#f59e0b55','#ef444455'], borderColor:['#22c55e','#f59e0b','#ef4444'], borderWidth:2 }]
-    },
-    options: {
-      responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ position:'bottom', labels:{ color:'#94a3b8', font:{size:11}, boxWidth:12 } } }
-    }
-  });
+// ═══════════════════════
+// ASSIGNMENTS
+// ═══════════════════════
+function goAssignments() { showScreen('assignments'); }
+function goViewAssignments() { showScreen('view-assignments'); }
 
-  // Detail
-  const detailEl = document.getElementById('stats-detail');
-  detailEl.innerHTML = perStudent.map(s => {
-    const pct = s.total ? Math.round(s.present/s.total*100) : 0;
-    const initials = s.name.slice(0,2).toUpperCase();
-    return `<div class="card card-sm" style="margin:0 16px 10px">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
-        <div class="avatar" style="background:${s.color}22;color:${s.color};width:32px;height:32px;font-size:11px">${initials}</div>
-        <div style="flex:1">
-          <div style="font-size:13px;font-weight:600">${students.find(x=>x.name.startsWith(s.name))?.name||s.name}</div>
-          <div style="font-size:11px;color:var(--text3)">${pct}% asistencia</div>
-        </div>
+function renderAssignments() {
+  populateAssignmentCourseSelect();
+  const el = document.getElementById('assignments-list');
+  if (S.assignments.length === 0) {
+    el.innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/></svg><p>No hay entregas configuradas.<br>Toca "+ Nueva" para crear una.</p></div>';
+    return;
+  }
+  el.innerHTML = S.assignments.map(a => {
+    const c = S.courses.find(x=>x.id===a.courseId);
+    const total = c ? c.students.length : 0;
+    const submitted = Object.values(a.submissions||{}).filter(Boolean).length;
+    return `<div class="assign-card">
+      <div class="assign-header">
+        <div style="width:8px;height:8px;border-radius:50%;background:${c?.color||'var(--accent)'};flex-shrink:0;margin-top:2px"></div>
+        <div class="assign-title">${a.title}</div>
+        <span class="badge badge-blue">${submitted}/${total}</span>
       </div>
-      <div style="display:flex;gap:8px">
-        <div style="flex:1;text-align:center;padding:8px;background:var(--green-bg);border-radius:8px">
-          <div style="font-size:18px;font-weight:700;color:var(--green);font-family:var(--mono)">${s.present}</div>
-          <div style="font-size:9px;color:var(--green);text-transform:uppercase;letter-spacing:.5px">Pres.</div>
-        </div>
-        <div style="flex:1;text-align:center;padding:8px;background:var(--yellow-bg);border-radius:8px">
-          <div style="font-size:18px;font-weight:700;color:var(--yellow);font-family:var(--mono)">${s.late}</div>
-          <div style="font-size:9px;color:var(--yellow);text-transform:uppercase;letter-spacing:.5px">Tarde</div>
-        </div>
-        <div style="flex:1;text-align:center;padding:8px;background:var(--red-bg);border-radius:8px">
-          <div style="font-size:18px;font-weight:700;color:var(--red);font-family:var(--mono)">${s.absent}</div>
-          <div style="font-size:9px;color:var(--red);text-transform:uppercase;letter-spacing:.5px">Aus.</div>
-        </div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:12px">${c?.name||''} · Entrega: ${a.due}</div>
+      ${c ? c.students.map(s => {
+        const sub = a.submissions?.[s.id];
+        return `<div class="assign-student-row">
+          <div style="flex:1;font-size:13px;font-weight:500">${s.name}</div>
+          <button onclick="toggleSubmission('${a.id}','${s.id}')" style="background:${sub?'var(--green-bg)':'var(--red-bg)'};color:${sub?'var(--green)':'var(--red)'};border:none;border-radius:var(--r-sm);padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer">${sub?'✓ Entregó':'✗ No entregó'}</button>
+        </div>`;
+      }).join('') : ''}
+      <div style="margin-top:12px">
+        <button onclick="deleteAssignment('${a.id}')" class="btn btn-danger btn-sm" style="width:auto;padding:8px 16px">Eliminar</button>
       </div>
     </div>`;
   }).join('');
 }
 
-// ═══════════════════════════════════════════════
+function populateAssignmentCourseSelect() {
+  const sel = document.getElementById('na-course');
+  sel.innerHTML = '<option value="">Seleccionar curso...</option>' +
+    S.courses.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+}
+
+function saveAssignment() {
+  const title = document.getElementById('na-title').value.trim();
+  const courseId = document.getElementById('na-course').value;
+  const due = document.getElementById('na-due').value.trim();
+  if (!title || !courseId) { toast('Completá título y curso'); return; }
+  S.assignments.push({ id:'A'+Date.now(), title, courseId, due, submissions:{} });
+  save('ad_assignments', S.assignments);
+  closeModal('modal-new-assignment');
+  document.getElementById('na-title').value='';
+  document.getElementById('na-due').value='';
+  renderAssignments();
+  toast('Entrega creada ✓');
+}
+
+function toggleSubmission(assignId, studentId) {
+  const a = S.assignments.find(x=>x.id===assignId);
+  if (!a) return;
+  if (!a.submissions) a.submissions = {};
+  a.submissions[studentId] = !a.submissions[studentId];
+  save('ad_assignments', S.assignments);
+  renderAssignments();
+}
+
+function deleteAssignment(id) {
+  if (!confirm('¿Eliminar esta entrega?')) return;
+  S.assignments = S.assignments.filter(a=>a.id!==id);
+  save('ad_assignments', S.assignments);
+  renderAssignments();
+  toast('Entrega eliminada');
+}
+
+function renderViewAssignments() {
+  const filterEl = document.getElementById('va-course-filter');
+  filterEl.innerHTML = '<button class="filter-chip active" onclick="filterVA(\'all\',this)">Todos</button>' +
+    S.courses.map(c=>`<button class="filter-chip" onclick="filterVA('${c.id}',this)">${c.name}</button>`).join('');
+  renderVAList('all');
+}
+
+function filterVA(courseId, btn) {
+  document.querySelectorAll('#va-course-filter .filter-chip').forEach(c=>c.classList.remove('active'));
+  btn.classList.add('active');
+  renderVAList(courseId);
+}
+
+function renderVAList(courseId) {
+  const el = document.getElementById('va-list');
+  let assigns = courseId==='all' ? S.assignments : S.assignments.filter(a=>a.courseId===courseId);
+  if (assigns.length===0) { el.innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg><p>No hay entregas registradas</p></div>'; return; }
+  el.innerHTML = assigns.map(a => {
+    const c = S.courses.find(x=>x.id===a.courseId);
+    const submitted = c ? c.students.filter(s=>a.submissions?.[s.id]) : [];
+    const pending = c ? c.students.filter(s=>!a.submissions?.[s.id]) : [];
+    const pct = c && c.students.length > 0 ? Math.round(submitted.length/c.students.length*100) : 0;
+    return `<div class="assign-card">
+      <div class="assign-header">
+        <div style="width:8px;height:8px;border-radius:50%;background:${c?.color||'var(--accent)'}"></div>
+        <div class="assign-title">${a.title}</div>
+        <span class="badge ${pct>=80?'badge-green':pct>=50?'badge-yellow':'badge-red'}">${pct}%</span>
+      </div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:12px">${c?.name||''} · ${a.due}</div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <div style="flex:1;background:var(--green-bg);border-radius:var(--r-sm);padding:10px;text-align:center">
+          <div style="font-family:var(--head);font-size:22px;font-weight:800;color:var(--green)">${submitted.length}</div>
+          <div style="font-size:10px;color:var(--green)">ENTREGARON</div>
+        </div>
+        <div style="flex:1;background:var(--red-bg);border-radius:var(--r-sm);padding:10px;text-align:center">
+          <div style="font-family:var(--head);font-size:22px;font-weight:800;color:var(--red)">${pending.length}</div>
+          <div style="font-size:10px;color:var(--red)">PENDIENTES</div>
+        </div>
+      </div>
+      ${pending.length>0?`<div style="font-size:11px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Sin entregar:</div>${pending.map(s=>`<div style="font-size:13px;padding:4px 0;color:var(--text2)">${s.name}</div>`).join('')}`:'<div style="font-size:13px;color:var(--green)">✓ Todos entregaron</div>'}
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════
 // MODALS
-// ═══════════════════════════════════════════════
-function openModal(id) { document.getElementById(id).classList.add('open'); }
+// ═══════════════════════
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+  if (id==='modal-manage-courses') renderManageCourses();
+  if (id==='modal-add-course') { if (!document.querySelector('#nc-schedules [id^="sched-row-"]')) addScheduleRow(); }
+}
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.overlay').forEach(o => o.addEventListener('click', e => { if(e.target===o) o.classList.remove('open'); }));
 
-document.querySelectorAll('.modal-overlay').forEach(overlay => {
-  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
-});
-
-function openStudentModal(studentId) {
-  const s = students.find(x => x.id === studentId);
-  if (!s) return;
-  document.getElementById('modal-student-name').textContent = s.name;
-
-  const recs = attendance.filter(r => r.studentId === studentId).slice(-10).reverse();
-  const present = attendance.filter(r=>r.studentId===studentId&&r.status==='Presente').length;
-  const late = attendance.filter(r=>r.studentId===studentId&&r.status==='Tarde').length;
-  const absent = attendance.filter(r=>r.studentId===studentId&&r.status==='Ausente').length;
-
-  document.getElementById('modal-student-body').innerHTML = `
-    <div style="display:flex;gap:8px;margin-bottom:16px">
-      <div style="flex:1;text-align:center;padding:10px;background:var(--green-bg);border-radius:10px">
-        <div style="font-size:22px;font-weight:700;color:var(--green);font-family:var(--mono)">${present}</div>
-        <div style="font-size:10px;color:var(--green)">PRESENTE</div>
-      </div>
-      <div style="flex:1;text-align:center;padding:10px;background:var(--yellow-bg);border-radius:10px">
-        <div style="font-size:22px;font-weight:700;color:var(--yellow);font-family:var(--mono)">${late}</div>
-        <div style="font-size:10px;color:var(--yellow)">TARDE</div>
-      </div>
-      <div style="flex:1;text-align:center;padding:10px;background:var(--red-bg);border-radius:10px">
-        <div style="font-size:22px;font-weight:700;color:var(--red);font-family:var(--mono)">${absent}</div>
-        <div style="font-size:10px;color:var(--red)">AUSENTE</div>
-      </div>
-    </div>
-    <div style="font-size:12px;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Últimas clases</div>
-    ${recs.map(r => `
-      <div class="detail-row">
-        <div>
-          <div style="font-size:13px;font-weight:500">${r.date}</div>
-          <div style="font-size:11px;color:var(--text3)">Entrega: ${r.delivered?'✓ Sí':'✗ No'}</div>
-        </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-          <span class="badge ${r.status==='Presente'?'green':r.status==='Tarde'?'yellow':'red'}">${r.status}</span>
-          <span style="font-size:11px;color:var(--text3);font-family:var(--mono)">${r.time}</span>
-        </div>
-      </div>
-    `).join('')}
-    <div style="margin-top:16px">
-      <button class="btn btn-ghost" onclick="openObsModal('${studentId}')">Agregar observación</button>
-    </div>
-    <div style="margin-top:8px">
-      <button class="btn btn-ghost" onclick="showQR('${studentId}');closeModal('modal-student')">Ver QR</button>
-    </div>
-  `;
-  openModal('modal-student');
-}
-
-function openObsModal(studentId) {
-  const s = students.find(x => x.id === studentId);
-  if (!s) return;
-  APP.currentObsRecord = studentId;
-  APP.currentObsDelivery = null;
-  document.getElementById('modal-obs-name').textContent = s.name;
-  document.getElementById('obs-text').value = '';
-  document.getElementById('obs-delivered-yes').style.background = 'var(--surface2)';
-  document.getElementById('obs-delivered-no').style.background = 'var(--surface2)';
-  closeModal('modal-student');
-  openModal('modal-obs');
-}
-
-function setDelivery(val) {
-  APP.currentObsDelivery = val;
-  document.getElementById('obs-delivered-yes').style.background = val ? 'var(--green-bg)' : 'var(--surface2)';
-  document.getElementById('obs-delivered-no').style.background = !val ? 'var(--red-bg)' : 'var(--surface2)';
-  document.getElementById('obs-delivered-yes').style.color = val ? 'var(--green)' : 'var(--text)';
-  document.getElementById('obs-delivered-no').style.color = !val ? 'var(--red)' : 'var(--text)';
-}
-
-function saveObservation() {
-  const text = document.getElementById('obs-text').value.trim();
-  const today = new Date().toISOString().split('T')[0];
-  // update most recent record for this student
-  const idx = attendance.map((r,i)=>({...r,i})).filter(r=>r.studentId===APP.currentObsRecord)
-    .sort((a,b)=>b.date.localeCompare(a.date))[0]?.i;
-  if (idx !== undefined) {
-    if (APP.currentObsDelivery !== null) attendance[idx].delivered = APP.currentObsDelivery;
-    if (text) attendance[idx].observations = text;
-    saveToStorage('att_records', attendance);
-  }
-  closeModal('modal-obs');
-  showToast('Observación guardada ✓');
-}
-
-// ═══════════════════════════════════════════════
-// TOAST
-// ═══════════════════════════════════════════════
-let toastTimer;
-function showToast(msg) {
+// ═══════════════════════
+// TOAST + BEEP
+// ═══════════════════════
+let toastT;
+function toast(msg) {
   const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(()=>el.classList.remove('show'),2800);
 }
 
-// ═══════════════════════════════════════════════
-// SYNC DESDE GOOGLE SHEETS
-// ═══════════════════════════════════════════════
-async function syncFromSheets() {
-  const btn = document.getElementById('sync-btn');
-  if (btn) btn.textContent = '↻ Cargando...';
-  showToast('Sincronizando con Google Sheets...');
-  const data = await sheetsGet();
-  if (data && Array.isArray(data) && data.length > 0) {
-    const remote = data.map(r => ({
-      id: (r['ID Alumno'] || '') + '-' + (r['Fecha'] || ''),
-      studentId: r['ID Alumno'] || '',
-      name: r['Nombre'] || '',
-      date: r['Fecha'] || '',
-      time: r['Hora'] || '',
-      status: r['Estado'] || '',
-      delivered: r['Entrega'] === 'Sí',
-      observations: r['Observaciones'] || ''
-    }));
-    // Merge: agregar solo los que no existen localmente
-    const localIds = new Set(attendance.map(r => r.studentId + '-' + r.date));
-    let added = 0;
-    remote.forEach(r => {
-      if (!localIds.has(r.studentId + '-' + r.date)) {
-        attendance.push(r);
-        added++;
-      }
-    });
-    if (added > 0) {
-      saveToStorage('att_records', attendance);
-      showToast(added + ' registros importados de Sheets ✓');
-    } else {
-      showToast('Todo sincronizado. Sin cambios nuevos.');
-    }
-    drawStats();
-  } else {
-    showToast('Sin conexión o Sheets vacío');
-  }
-  if (btn) btn.textContent = '↻ Sync';
+function beep(type) {
+  try { navigator.vibrate && navigator.vibrate(type==='ok'?[40]:type==='dup'?[40,40,40]:[80,40,80]); } catch(e){}
+  try {
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const osc = ctx.createOscillator(); const g = ctx.createGain();
+    osc.connect(g); g.connect(ctx.destination);
+    osc.frequency.value = type==='ok'?880:type==='dup'?440:220;
+    g.gain.setValueAtTime(0.25, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.25);
+    osc.start(); osc.stop(ctx.currentTime+0.25);
+  } catch(e){}
 }
 
-// ═══════════════════════════════════════════════
-// SERVICE WORKER (PWA)
-// ═══════════════════════════════════════════════
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').catch(()=>{});
-}
+// ═══════════════════════
+// INIT
+// ═══════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  initData();
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+});
 </script>
 </body>
 </html>
