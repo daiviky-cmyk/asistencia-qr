@@ -1,6 +1,6 @@
 {
-  "name": "AsistenciaQR",
-  "short_name": "AsistenciaQR",
+  "name": "Assistant Day",
+  "short_name": "Assistant Day",
   "description": "Gestión de asistencia con escaneo QR para docentes",
   "start_url": "/",
   "display": "standalone",
