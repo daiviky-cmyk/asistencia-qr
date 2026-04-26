@@ -432,11 +432,15 @@ label{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;font-wei
       <!-- Pending -->
       <div class="section-label" style="padding:0">Sin registrar</div>
       <div class="card" id="pending-card" style="margin:0"></div>
-      <!-- Close button -->
-      <button class="btn btn-danger" onclick="closeAttendance()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/></svg>
-        Cerrar Asistencia
-      </button>
+      <!-- Buttons -->
+      <div style="display:grid;grid-template-columns:1fr 2fr;gap:10px">
+        <button class="btn btn-ghost" onclick="cancelAttendance()">
+          ✕ Cancelar
+        </button>
+        <button class="btn btn-danger" onclick="closeAttendance()">
+          ◼ Cerrar y Guardar
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -704,6 +708,7 @@ function initData() {
   S.assignments = load('ad_assignments') || [];
   const ac = load('ad_active_class');
   if (ac) { S.activeClass = ac; S.activeClass.startTime = new Date(ac.startTime); }
+  console.log('Cursos cargados:', S.courses.length);
 }
 
 // ═══════════════════════
@@ -748,7 +753,8 @@ function doLogin() {
   const pass = document.getElementById('login-pass').value;
   if (!email || !pass) { toast('Ingresá email y contraseña'); return; }
   S.user = { email, name: email.split('@')[0] };
-  document.getElementById('login-screen')?.classList.remove('active');
+  save('ad_user', S.user);
+  initData(); // Cargar datos guardados
   document.getElementById('s-login').classList.remove('active');
   document.getElementById('bottom-nav').style.display = 'flex';
   document.getElementById('home-name').textContent = S.user.name;
@@ -801,12 +807,18 @@ function updateActiveBanner() {
 // COURSE MANAGEMENT
 // ═══════════════════════
 function goStartAttendance() {
-  if (S.activeClass) { goScanActive(); return; }
+  // Si hay clase activa, mostrar confirmación
+  if (S.activeClass) {
+    const continuar = confirm('Hay una clase activa de "' + S.activeClass.courseName + '". ¿Querés continuar con esa clase?');
+    if (continuar) { goScanActive(); return; }
+    else { return; }
+  }
   if (S.courses.length === 0) {
-    toast('Primero configurá un curso');
+    toast('Primero configurá un curso tocando "+ Curso"');
     showScreen('courses');
     return;
   }
+  // Mostrar pantalla de selección de curso — NO abrir cámara todavía
   showScreen('courses');
 }
 
@@ -823,15 +835,19 @@ function renderCourseSelector() {
     return;
   }
   list.innerHTML = S.courses.map(c => `
-    <div class="course-item" onclick="selectCourse('${c.id}')">
-      <div class="course-dot" style="background:${c.color}"></div>
-      <div class="course-info">
-        <div class="course-name">${c.name}</div>
-        <div class="course-sched">${c.schedules.map(s=>`${s.day} ${s.time}`).join(' · ')}</div>
+    <div style="border-bottom:1px solid var(--line);padding:14px 16px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px" onclick="selectCourse('${c.id}')" >
+        <div class="course-dot" style="background:${c.color};width:14px;height:14px;border-radius:50%;flex-shrink:0"></div>
+        <div class="course-info" style="flex:1">
+          <div class="course-name" style="font-size:15px;font-weight:700">${c.name}</div>
+          <div class="course-sched" style="font-size:12px;color:var(--text2);margin-top:2px">${c.schedules.map(s=>s.day+' '+s.time).join(' · ')} · ${c.students.length} alumnos</div>
+        </div>
+        <div style="background:var(--accent);color:#0D1117;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;flex-shrink:0">Iniciar →</div>
       </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-        <span class="course-count">${c.students.length} alumnos</span>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+      <div style="display:flex;gap:8px">
+        <button onclick="showCourseQRs('${c.id}')" style="flex:1;background:var(--bg2);color:var(--text2);border:1px solid var(--line2);border-radius:8px;padding:8px;font-size:12px;cursor:pointer">🔳 Ver QRs</button>
+        <button onclick="editCourseName('${c.id}')" style="flex:1;background:var(--bg2);color:var(--text2);border:1px solid var(--line2);border-radius:8px;padding:8px;font-size:12px;cursor:pointer">✏️ Renombrar</button>
+        <button onclick="deleteCourse('${c.id}')" style="flex:1;background:var(--red-bg);color:var(--red);border:1px solid rgba(248,81,73,0.25);border-radius:8px;padding:8px;font-size:12px;cursor:pointer">🗑️ Eliminar</button>
       </div>
     </div>`).join('');
 }
@@ -843,6 +859,8 @@ function selectCourse(courseId) {
     toast('Ya hay una clase activa de ' + S.activeClass.courseName);
     return;
   }
+  const ok = confirm('¿Iniciar asistencia para "' + c.name + '"?\n' + c.students.length + ' alumnos · Tolerancia 10 min');
+  if (!ok) return;
   startScanScreen(c);
 }
 
@@ -908,6 +926,17 @@ function renderManageCourses() {
       <button onclick="showCourseQRs('${c.id}')" style="background:rgba(88,166,255,0.1);color:var(--accent);border:none;border-radius:var(--r-sm);padding:6px 12px;font-size:12px;cursor:pointer">QRs</button>
       <button onclick="deleteCourse('${c.id}')" style="background:var(--red-bg);color:var(--red);border:none;border-radius:var(--r-sm);padding:6px 12px;font-size:12px;cursor:pointer">Eliminar</button>
     </div>`).join('');
+}
+
+function editCourseName(id) {
+  const c = S.courses.find(x => x.id === id);
+  if (!c) return;
+  const newName = prompt('Nuevo nombre para el curso:', c.name);
+  if (!newName || !newName.trim()) return;
+  c.name = newName.trim();
+  save('ad_courses', S.courses);
+  renderCourseSelector();
+  toast('Nombre actualizado ✓');
 }
 
 function deleteCourse(id) {
@@ -1102,6 +1131,15 @@ function showScanFeedback(type, icon, name, status) {
     <div class="scan-feedback-status">${status}</div>
   </div>`;
   setTimeout(() => { el.style.display = 'none'; }, 2500);
+}
+
+function cancelAttendance() {
+  if (!confirm('¿Cancelar la asistencia? No se guardará nada.')) return;
+  S.activeClass = null;
+  localStorage.removeItem('ad_active_class');
+  stopScanner();
+  showScreen('home');
+  toast('Asistencia cancelada');
 }
 
 async function closeAttendance() {
@@ -1455,6 +1493,17 @@ function beep(type) {
 // ═══════════════════════
 window.addEventListener('DOMContentLoaded', () => {
   initData();
+  // Si ya hay sesión guardada, saltar login
+  const savedUser = load('ad_user');
+  if (savedUser) {
+    S.user = savedUser;
+    document.getElementById('s-login').classList.remove('active');
+    document.getElementById('bottom-nav').style.display = 'flex';
+    document.getElementById('home-name').textContent = S.user.name;
+    document.getElementById('home-date').textContent = new Date().toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+    showScreen('home');
+    if (S.activeClass) updateActiveBanner();
+  }
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
 });
 </script>
