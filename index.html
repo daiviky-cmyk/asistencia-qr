@@ -1492,6 +1492,16 @@ function beep(type) {
 // INIT
 // ═══════════════════════
 window.addEventListener('DOMContentLoaded', () => {
+  // Desregistrar TODOS los service workers
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(regs => {
+      regs.forEach(r => r.unregister());
+    });
+  }
+  // Borrar todo el caché
+  if ('caches' in window) {
+    caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
+  }
   initData();
   // Si ya hay sesión guardada, saltar login
   const savedUser = load('ad_user');
@@ -1504,7 +1514,7 @@ window.addEventListener('DOMContentLoaded', () => {
     showScreen('home');
     if (S.activeClass) updateActiveBanner();
   }
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+  // SW registrado arriba
 });
 </script>
 </body>
