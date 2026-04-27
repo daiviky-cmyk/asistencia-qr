@@ -114,7 +114,12 @@
             const processedNamesInSession = useRef(new Set());
 
             const [fCourse, setFCourse] = useState({ name: '', students: '', schedule: {} });
+            const [editingCourseId, setEditingCourseId] = useState(null);
             const [fTP, setFTP] = useState({ name: '' });
+
+            useEffect(() => {
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            }, [screen, courses, editingCourseId]);
 
             useEffect(() => {
                 const initAuth = async () => {
@@ -122,11 +127,7 @@
                         await auth.signInAnonymously();
                     } catch (e) { 
                         console.error("Auth Error:", e);
-                        if (e.code === 'auth/configuration-not-found') {
-                            setAuthError('Autenticación anónima no habilitada en la consola.');
-                        } else {
-                            setAuthError(e.message);
-                        }
+                        setAuthError('Error de conexión a la nube.');
                     } finally {
                         setLoading(false);
                     }
@@ -221,42 +222,67 @@
                 setSelectedCourse(null);
                 setSessionAttendance([]);
                 setIsSaving(false);
+                setEditingCourseId(null);
+                setFCourse({ name: '', students: '', schedule: {} });
                 processedNamesInSession.current.clear();
             };
 
             const saveCourse = async () => {
                 if(!fCourse.name || !fCourse.students) return;
-                const path = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('courses');
+                setIsSaving(true);
+                const col = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('courses');
+                
                 const cleanStudentList = fCourse.students
                     .split('\n')
                     .map(s => s.trim().toUpperCase().replace(/[\u200B-\u200D\uFEFF]/g, ''))
                     .filter(s => s !== "");
 
-                await path.add({
+                const courseData = {
                     name: fCourse.name.trim(),
                     students: cleanStudentList,
                     schedule: fCourse.schedule,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                };
+
+                try {
+                    if (editingCourseId) {
+                        await col.doc(editingCourseId).update(courseData);
+                        showToast("Curso actualizado");
+                    } else {
+                        await col.add({ ...courseData, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+                        showToast("Curso creado");
+                    }
+                    setFCourse({name:'', students:'', schedule:{}});
+                    setEditingCourseId(null);
+                    setScreen('home');
+                } catch (e) {
+                    showToast("Error al guardar", "error");
+                } finally {
+                    setIsSaving(false);
+                }
+            };
+
+            const handleEditCourse = (course) => {
+                setFCourse({
+                    name: course.name,
+                    students: course.students.join('\n'),
+                    schedule: course.schedule || {}
                 });
-                setFCourse({name:'', students:'', schedule:{}});
-                setScreen('home');
-                showToast("Curso guardado");
+                setEditingCourseId(course.id);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
             };
 
             const handleScan = (decodedText) => {
                 const nowTime = Date.now();
-                if (lastProcessedRef.current && (nowTime - lastProcessedRef.current < 2000)) return;
+                if (lastProcessedRef.current && (nowTime - lastProcessedRef.current < 2500)) return;
                 lastProcessedRef.current = nowTime;
 
                 let cleanName = decodedText.trim().toUpperCase()
                     .replace(/[\u200B-\u200D\uFEFF]/g, '')
                     .replace(/\r?\n|\r/g, "");
 
-                if (cleanName.includes("-")) {
-                    cleanName = cleanName.split("-").pop().trim();
-                } else if (cleanName.includes(":")) {
-                    cleanName = cleanName.split(":").pop().trim();
-                }
+                if (cleanName.includes("-")) cleanName = cleanName.split("-").pop().trim();
+                else if (cleanName.includes(":")) cleanName = cleanName.split(":").pop().trim();
 
                 const foundInCourse = selectedCourse.students.some(s => s.trim() === cleanName);
 
@@ -313,11 +339,7 @@
                     processedNamesInSession.current.clear();
                     const today = new Date().toISOString().split('T')[0];
                     const alreadyDone = records.some(r => r.course === selectedCourse.name && r.date === today);
-                    
-                    if (alreadyDone) {
-                        showToast("Editando lista de hoy...", "info");
-                    }
-
+                    if (alreadyDone) showToast("Editando lista de hoy...", "info");
                     setTimeout(startScanner, 500);
                 }
                 return () => {
@@ -345,19 +367,14 @@
                     const batch = db.batch();
                     toDelete.forEach(doc => batch.delete(doc.ref));
 
-                    const presentes = sessionAttendance;
                     const ausentes = selectedCourse.students
                         .filter(n => !sessionAttendance.find(s => s.name === n))
                         .map(n => ({ 
-                            name: n, 
-                            course: selectedCourse.name, 
-                            date: today, 
-                            status: 'Ausente', 
-                            time: '--:--', 
-                            type: 'Asistencia' 
+                            name: n, course: selectedCourse.name, date: today, 
+                            status: 'Ausente', time: '--:--', type: 'Asistencia' 
                         }));
                     
-                    const all = [...presentes, ...ausentes];
+                    const all = [...sessionAttendance, ...ausentes];
                     all.forEach(rec => {
                         const docRef = path.doc();
                         batch.set(docRef, rec);
@@ -365,10 +382,9 @@
                     });
 
                     await batch.commit();
-                    showToast("Lista actualizada correctamente");
+                    showToast("Lista sincronizada");
                     handleBack();
                 } catch (e) {
-                    console.error(e);
                     showToast("Error al guardar", "error");
                     setIsSaving(false);
                 }
@@ -411,19 +427,13 @@
                 showToast("Historial borrado");
             };
 
-            if (authError) return (
-                <div className="flex h-screen flex-col items-center justify-center bg-red-50 p-6 text-center animate-in">
-                    <h2 className="text-xl font-black text-red-800 mb-2 uppercase italic tracking-tighter">Fallo de Conexión</h2>
-                    <p className="text-red-600 mb-6 font-semibold text-xs">{authError}</p>
-                </div>
-            );
-
-            if (loading) return <div className="flex h-screen items-center justify-center bg-indigo-700 text-white font-black uppercase text-xs tracking-widest animate-pulse italic">Cargando Assistant Day...</div>;
+            if (authError) return <div className="flex h-screen items-center justify-center p-10 text-center font-black text-red-500 uppercase italic tracking-widest">{authError}</div>;
+            if (loading) return <div className="flex h-screen items-center justify-center bg-indigo-700 text-white font-black uppercase text-xs tracking-widest animate-pulse italic">Cargando Tilcara...</div>;
 
             return (
                 <div className="app-container">
                     {toast && (
-                        <div className={`fixed top-10 left-1/2 -translate-x-1/2 z-[100] px-6 py-4 rounded-3xl shadow-2xl animate-in font-black text-xs uppercase tracking-widest flex items-center gap-3 border ${toast.type === 'success' ? 'bg-green-500 text-white border-green-400' : toast.type === 'info' ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-red-500 text-white border-red-400'}`}>
+                        <div className={`fixed top-10 left-1/2 -translate-x-1/2 z-[100] px-6 py-4 rounded-3xl shadow-2xl animate-in font-black text-[10px] uppercase tracking-widest flex items-center gap-3 border ${toast.type === 'success' ? 'bg-green-500 text-white border-green-400' : toast.type === 'info' ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-red-500 text-white border-red-400'}`}>
                             {toast.msg}
                         </div>
                     )}
@@ -476,7 +486,7 @@
                                     <div className="space-y-3">
                                         {courses.map(c => (
                                             <div key={c.id} className="bg-slate-50 p-5 rounded-[32px] border border-slate-100 flex items-center justify-between shadow-sm">
-                                                <p className="font-black text-slate-700 uppercase text-xs leading-none">{c.name}</p>
+                                                <p className="font-black text-slate-700 uppercase text-xs leading-none truncate max-w-[70%]">{c.name}</p>
                                                 <p className="text-[8px] text-indigo-400 font-bold uppercase mt-1 italic tracking-widest">{c.students.length} alumnos</p>
                                             </div>
                                         ))}
@@ -488,62 +498,75 @@
                         {screen === 'manage' && (
                             <div className="p-6 space-y-6 animate-in text-left pb-20">
                                 <div className="bg-white p-6 rounded-[40px] shadow-xl border border-slate-100 space-y-5">
-                                    <p className="text-[10px] font-black text-indigo-600 uppercase italic ml-2">Nuevo Curso</p>
+                                    <div className="flex justify-between items-center px-2">
+                                        <p className="text-[10px] font-black text-indigo-600 uppercase italic">
+                                            {editingCourseId ? 'Editando Curso' : 'Nuevo Curso'}
+                                        </p>
+                                        {editingCourseId && (
+                                            <button onClick={handleBack} className="text-[8px] font-black text-red-400 uppercase tracking-widest">Cancelar Edición</button>
+                                        )}
+                                    </div>
                                     
-                                    {/* Nombre del Curso */}
                                     <div className="space-y-2">
                                         <p className="text-[9px] font-black text-slate-400 uppercase ml-2 italic">Identificación</p>
                                         <input value={fCourse.name} onChange={e=>setFCourse({...fCourse, name:e.target.value})} placeholder="Nombre: Ej 4to 1ra Ciencias" className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-none outline-none text-sm shadow-inner" />
                                     </div>
 
-                                    {/* Días y Horarios */}
                                     <div className="space-y-3">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase ml-2 italic">Días y Horario de Clase</p>
-                                        <div className="flex justify-between">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase ml-2 italic">Días y Horario</p>
+                                        <div className="flex justify-between gap-1">
                                             {DAYS_ES.slice(1,7).map(d => (
                                                 <button key={d.id} onClick={()=>{
                                                     const n = {...fCourse.schedule}; 
                                                     if(n[d.id]) delete n[d.id]; 
                                                     else n[d.id]="08:00";
                                                     setFCourse({...fCourse, schedule:n});
-                                                }} className={`w-11 h-11 rounded-xl text-[10px] font-black border transition-all ${fCourse.schedule[d.id] ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg' : 'bg-white text-slate-400'}`}>
+                                                }} className={`flex-1 h-12 rounded-xl text-[10px] font-black border transition-all ${fCourse.schedule[d.id] ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg' : 'bg-white text-slate-400 border-slate-100'}`}>
                                                     {d.label.charAt(0)}
                                                 </button>
                                             ))}
                                         </div>
                                         
-                                        {/* Inputs de Hora Dinámicos */}
                                         <div className="space-y-2">
                                             {Object.entries(fCourse.schedule).map(([d, t]) => (
-                                                <div key={d} className="flex items-center justify-between bg-slate-50 p-3 rounded-2xl border border-indigo-50 animate-in">
+                                                <div key={d} className="flex items-center justify-between bg-slate-50 p-3 rounded-2xl border border-indigo-50 animate-in shadow-sm">
                                                     <span className="text-[9px] font-black text-slate-500 uppercase italic pl-2">{DAYS_ES.find(x=>x.id==d).label}</span>
                                                     <input type="time" value={t} onChange={e=>setFCourse({...fCourse, schedule:{...fCourse.schedule, [d]:e.target.value}})} className="bg-transparent font-black text-indigo-600 text-xs outline-none" />
                                                 </div>
                                             ))}
-                                            {Object.keys(fCourse.schedule).length === 0 && (
-                                                <p className="text-center text-[8px] text-slate-300 font-bold uppercase italic py-2">Selecciona un día para poner horario</p>
-                                            )}
                                         </div>
                                     </div>
 
-                                    {/* Lista de Alumnos */}
                                     <div className="space-y-2">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase ml-2 italic">Nómina de Alumnos</p>
-                                        <textarea value={fCourse.students} onChange={e=>setFCourse({...fCourse, students:e.target.value})} placeholder="Pega aquí la lista de alumnos (uno por línea)..." className="w-full p-4 bg-slate-50 rounded-2xl h-40 outline-none text-xs font-medium shadow-inner"></textarea>
+                                        <p className="text-[9px] font-black text-slate-400 uppercase ml-2 italic">Lista de Alumnos (un nombre por línea)</p>
+                                        <textarea value={fCourse.students} onChange={e=>setFCourse({...fCourse, students:e.target.value})} placeholder="Pega aquí la lista..." className="w-full p-4 bg-slate-50 rounded-2xl h-40 outline-none text-xs font-medium shadow-inner"></textarea>
                                     </div>
 
-                                    <button onClick={saveCourse} className="w-full bg-indigo-700 text-white p-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl active:scale-95 transition-all">Guardar Curso</button>
+                                    <button onClick={saveCourse} disabled={isSaving} className={`w-full ${isSaving ? 'bg-slate-400' : 'bg-indigo-700'} text-white p-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl flex items-center justify-center gap-2`}>
+                                        {isSaving && <span className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></span>}
+                                        {editingCourseId ? 'Actualizar Curso' : 'Guardar Curso'}
+                                    </button>
                                 </div>
                                 
                                 <div className="space-y-3 pt-4">
                                     <button onClick={clearAllAttendance} className="w-full bg-red-50 text-red-600 p-4 rounded-2xl font-black uppercase text-[10px] tracking-widest border border-red-100">Borrar Historial Asistencias</button>
                                     <button onClick={deleteAllCourses} className="w-full bg-red-100 text-red-700 p-4 rounded-2xl font-black uppercase text-[10px] tracking-widest border border-red-200">Borrar Todos los Cursos</button>
                                     
-                                    <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest px-2 pt-4 italic">Cursos Registrados</p>
+                                    <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest px-2 pt-4 italic text-left">Cursos Registrados</p>
                                     {courses.map(c => (
                                         <div key={c.id} className="bg-white p-4 rounded-2xl border flex justify-between items-center shadow-sm">
-                                            <span className="font-black text-slate-700 uppercase text-[10px]">{c.name}</span>
-                                            <button onClick={()=>deleteCourse(c.id)} className="text-red-400 p-2"><i data-lucide="trash-2" size={16}></i></button>
+                                            <div className="flex-1 text-left">
+                                                <p className="font-black text-slate-700 uppercase text-[10px] leading-tight">{c.name}</p>
+                                                <div className="flex gap-1 mt-1">
+                                                    {c.schedule && Object.keys(c.schedule).map(d => (
+                                                        <span key={d} className="text-[7px] bg-indigo-50 text-indigo-500 px-1 rounded font-black uppercase">{DAYS_ES.find(x=>x.id==d).label.charAt(0)}</span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button onClick={()=>handleEditCourse(c)} className="text-indigo-400 p-2 active:scale-90 transition-all"><i data-lucide="pencil" size={16}></i></button>
+                                                <button onClick={()=>deleteCourse(c.id)} className="text-red-400 p-2 active:scale-90 transition-all"><i data-lucide="trash-2" size={16}></i></button>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -553,7 +576,7 @@
                         {screen === 'sel-asist' && (
                             <div className="p-6 space-y-3 animate-in text-left">
                                 {courses.map(c => (
-                                    <button key={c.id} onClick={()=>{setSelectedCourse(c); setScreen('asist-run');}} className="w-full bg-white p-6 rounded-[32px] border flex justify-between items-center shadow-sm text-left">
+                                    <button key={c.id} onClick={()=>{setSelectedCourse(c); setScreen('asist-run');}} className="w-full bg-white p-6 rounded-[32px] border flex justify-between items-center shadow-sm text-left active:scale-95 transition-all">
                                         <span className="font-black uppercase text-xs text-slate-700">{c.name}</span>
                                         <i data-lucide="chevron-right" className="text-indigo-600"></i>
                                     </button>
@@ -561,7 +584,7 @@
                             </div>
                         )}
 
-                        {screen === 'asist-run' && (
+                        {screen === 'asist-run' && selectedCourse && (
                             <div className="p-6 space-y-6 text-center animate-in">
                                 <div className="bg-slate-900 aspect-square rounded-[48px] shadow-2xl relative overflow-hidden">
                                     <div id="reader" className="w-full h-full"></div>
@@ -602,12 +625,12 @@
                             </div>
                         )}
 
-                        {screen === 'tp-list' && (
+                        {screen === 'tp-list' && selectedCourse && (
                             <div className="p-6 space-y-6 animate-in text-left">
                                 <div className="bg-white p-6 rounded-[32px] border shadow-lg space-y-4">
-                                    <p className="text-[10px] font-black text-indigo-600 uppercase italic ml-2">Nuevo TP</p>
+                                    <p className="text-[10px] font-black text-indigo-600 uppercase italic ml-2">Nuevo TP para {selectedCourse.name}</p>
                                     <div className="flex gap-2">
-                                        <input value={fTP.name} onChange={e=>setFTP({name:e.target.value})} placeholder="Nombre del TP..." className="flex-1 p-4 bg-slate-50 rounded-2xl outline-none font-bold text-sm shadow-inner" />
+                                        <input value={fTP.name} onChange={e=>setFTP({name:e.target.value})} placeholder="Nombre del TP..." className="flex-1 p-4 bg-slate-50 rounded-2xl outline-none font-black text-sm shadow-inner" />
                                         <button onClick={async ()=>{
                                             if(!fTP.name) return;
                                             await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('assignments').add({name:fTP.name, courseId:selectedCourse.id});
@@ -620,7 +643,7 @@
                                     {assignments.filter(a => a.courseId === selectedCourse.id).map(a => (
                                         <div key={a.id} onClick={()=>{setSelectedTP(a); setScreen('tp-check');}} className="bg-white p-5 rounded-[32px] border flex justify-between items-center cursor-pointer shadow-sm active:scale-95 transition-all">
                                             <div className="text-left">
-                                                <span className="font-black text-slate-700 uppercase text-xs">{a.name}</span>
+                                                <span className="font-black text-slate-700 uppercase text-xs italic">{a.name}</span>
                                                 <p className="text-[8px] font-black text-indigo-400 uppercase mt-1 italic">Ver entregas</p>
                                             </div>
                                             <button onClick={(e)=>{e.stopPropagation(); if(confirm("¿Eliminar TP?")) db.collection('artifacts').doc(appId).collection('public').doc('data').collection('assignments').doc(a.id).delete();}} className="text-slate-200"><i data-lucide="trash-2" size={16}></i></button>
@@ -639,7 +662,7 @@
                                     </div>
                                     <span className="font-black text-indigo-700 text-2xl">{deliveries.filter(d => d.tpId === selectedTP.id && d.status === 'Entregado').length} / {selectedCourse.students.length}</span>
                                 </div>
-                                <div className="space-y-2 overflow-y-auto pb-10">
+                                <div className="space-y-2 overflow-y-auto pb-10 scrollbar-hide">
                                     {selectedCourse.students.map((s, idx) => {
                                         const d = deliveries.find(x => x.tpId === selectedTP.id && x.studentName === s);
                                         const status = d ? d.status : 'Pendiente';
@@ -669,7 +692,7 @@
                         {screen === 'qr-gen' && selectedCourse && (
                             <div className="p-6 space-y-6 animate-in text-left">
                                 <button onClick={()=>window.print()} className="no-print w-full bg-indigo-600 text-white p-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg flex items-center justify-center gap-2">
-                                    <i data-lucide="printer" size={16}></i> Imprimir Credenciales
+                                    <i data-lucide="printer" size={16}></i> Imprimir Todo
                                 </button>
                                 <div className="print-grid grid grid-cols-1 gap-4">
                                     {selectedCourse.students.map((student, i) => (
