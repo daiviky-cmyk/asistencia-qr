@@ -60,7 +60,7 @@
         const appId = 'assistant-day-pro-v2';
         
         // --- 🔗 URL DE VINCULACIÓN ACTUALIZADA 🔗 ---
-        const GS_API_URL = "https://script.google.com/macros/s/AKfycbz1fOHMSWmheWdV2GrtpTDRy01UZIQUzd1Cl1C-tr5NPeSPD_4SEsBT_oKYs2bMyVfxlA/exec";
+        const GS_API_URL = "https://script.google.com/macros/s/AKfycbzWkH1ByeZVmTKLwdW45rlyLe_4OLSZMAfrAC54CKAPb2pfdKCZIyXWBY4nMxIQFnYT/exec";
 
         if (!firebase.apps.length) {
             firebase.initializeApp(firebaseConfig);
@@ -353,7 +353,7 @@
                 const today = new Date().toISOString().split('T')[0];
                 
                 try {
-                    // 1. Firebase
+                    // 1. Firebase (Nube propia)
                     const existingDocs = await path.where('course', '==', selectedCourse.name).where('date', '==', today).get();
                     const batch = db.batch();
                     existingDocs.docs.forEach(doc => batch.delete(doc.ref));
@@ -373,10 +373,11 @@
                     });
                     await batch.commit();
 
-                    // 2. Google Sheets (Sincronización robusta en segundo plano)
+                    // 2. Enviar a Google Sheets
                     if (GS_API_URL && GS_API_URL.startsWith("http")) {
                         showToast("Sincronizando...", "info");
-                        fetch(GS_API_URL, { 
+                        
+                        await fetch(GS_API_URL, { 
                             method: 'POST', 
                             mode: 'no-cors',
                             cache: 'no-cache',
@@ -385,7 +386,8 @@
                                 action: "attendance_bulk",
                                 payload: allRecords
                             }) 
-                        }).then(() => console.log("Google Sheets OK")).catch(e => console.log("Google Sheets Error:", e));
+                        });
+                        console.log("Sincronización de Sheets completada.");
                     }
 
                     showToast("✓ Jornada Guardada");
@@ -461,7 +463,7 @@
                                     </div>
                                 </div>
 
-                                <div className="p-8 text-left">
+                                <div className="p-8 text-left text-left">
                                     <h2 className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-4 px-2 italic">Cursos Activos</h2>
                                     <div className="space-y-3">
                                         {courses.map(c => (
@@ -477,7 +479,7 @@
 
                         {screen === 'manage' && (
                             <div className="p-6 space-y-6 animate-in text-left pb-20">
-                                <div className="bg-white p-6 rounded-[40px] shadow-xl border border-slate-100 space-y-5">
+                                <div className="bg-white p-6 rounded-[40px] shadow-xl border border-slate-100 space-y-5 text-left">
                                     <div className="flex justify-between items-center px-2">
                                         <p className="text-[10px] font-black text-indigo-600 uppercase italic">
                                             {editingCourseId ? 'Editando Curso' : 'Nuevo Curso'}
@@ -501,13 +503,13 @@
                                         </div>
                                         {Object.entries(fCourse.schedule).map(([d, t]) => (
                                             <div key={d} className="flex items-center justify-between bg-slate-50 p-3 rounded-2xl border border-indigo-50 animate-in">
-                                                <span className="text-[9px] font-black text-slate-500 uppercase italic pl-2">{DAYS_ES.find(x=>x.id==d).label}</span>
+                                                <span className="text-[9px] font-black text-slate-500 uppercase italic pl-2 text-left">{DAYS_ES.find(x=>x.id==d).label}</span>
                                                 <input type="time" value={t} onChange={e=>setFCourse({...fCourse, schedule:{...fCourse.schedule, [d]:e.target.value}})} className="bg-transparent font-black text-indigo-600 text-xs outline-none" />
                                             </div>
                                         ))}
                                     </div>
                                     <textarea value={fCourse.students} onChange={e=>setFCourse({...fCourse, students:e.target.value})} placeholder="Lista de alumnos (uno por línea)..." className="w-full p-4 bg-slate-50 rounded-2xl h-40 outline-none text-xs font-medium shadow-inner text-left text-left"></textarea>
-                                    <button onClick={saveCourse} disabled={isSaving} className={`w-full ${isSaving ? 'bg-slate-400' : 'bg-indigo-700'} text-white p-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl flex items-center justify-center gap-2`}>
+                                    <button onClick={saveCourse} disabled={isSaving} className={`w-full ${isSaving ? 'bg-slate-400' : 'bg-indigo-700'} text-white p-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl flex items-center justify-center gap-2 text-center`}>
                                         {isSaving ? 'Guardando...' : editingCourseId ? 'Actualizar Curso' : 'Guardar Curso'}
                                     </button>
                                 </div>
@@ -515,7 +517,7 @@
                                 <div className="space-y-3 pt-4">
                                     {courses.map(c => (
                                         <div key={c.id} className="bg-white p-4 rounded-2xl border flex justify-between items-center shadow-sm">
-                                            <div className="flex-1 text-left">
+                                            <div className="flex-1 text-left text-left">
                                                 <p className="font-black text-slate-700 uppercase text-[10px] text-left">{c.name}</p>
                                                 <p className="text-[8px] text-indigo-400 font-bold uppercase mt-1 italic tracking-widest text-left">{c.students.length} alumnos</p>
                                             </div>
@@ -530,11 +532,11 @@
                         )}
 
                         {screen === 'sel-asist' && (
-                            <div className="p-6 space-y-3 animate-in text-left">
+                            <div className="p-6 space-y-3 animate-in text-left text-left">
                                 {courses.map(c => (
-                                    <button key={c.id} onClick={()=>{setSelectedCourse(c); setScreen('asist-run');}} className="w-full bg-white p-6 rounded-[32px] border flex justify-between items-center shadow-sm text-left active:scale-95 transition-all">
+                                    <button key={c.id} onClick={()=>{setSelectedCourse(c); setScreen('asist-run');}} className="w-full bg-white p-6 rounded-[32px] border flex justify-between items-center shadow-sm text-left active:scale-95 transition-all text-left">
                                         <span className="font-black uppercase text-xs text-slate-700 text-left">{c.name}</span>
-                                        <i data-lucide="chevron-right" className="text-indigo-600"></i>
+                                        <i data-lucide="chevron-right" className="text-indigo-600 text-right"></i>
                                     </button>
                                 ))}
                             </div>
@@ -564,28 +566,28 @@
                                         </div>
                                     ))}
                                 </div>
-                                <button onClick={finalizeAsistencia} disabled={isSaving} className={`w-full ${isSaving ? 'bg-slate-400' : 'bg-indigo-700'} text-white p-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl flex items-center justify-center gap-3`}>
+                                <button onClick={finalizeAsistencia} disabled={isSaving} className={`w-full ${isSaving ? 'bg-slate-400' : 'bg-indigo-700'} text-white p-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl flex items-center justify-center gap-3 text-center`}>
                                     {isSaving ? 'Guardando...' : 'Finalizar Jornada'}
                                 </button>
                             </div>
                         )}
 
                         {screen === 'sel-tp' && (
-                            <div className="p-6 space-y-3 animate-in text-left">
+                            <div className="p-6 space-y-3 animate-in text-left text-left text-left">
                                 {courses.map(c => (
                                     <button key={c.id} onClick={()=>{setSelectedCourse(c); setScreen('tp-list');}} className="w-full bg-white p-6 rounded-[32px] border flex justify-between items-center shadow-sm text-left active:scale-95 transition-all text-left">
                                         <span className="font-black uppercase text-xs text-slate-700 text-left">{c.name}</span>
-                                        <i data-lucide="chevron-right" className="text-indigo-600"></i>
+                                        <i data-lucide="chevron-right" className="text-indigo-600 text-right"></i>
                                     </button>
                                 ))}
                             </div>
                         )}
 
                         {screen === 'tp-list' && selectedCourse && (
-                            <div className="p-6 space-y-6 animate-in text-left">
-                                <div className="bg-white p-6 rounded-[32px] border shadow-lg space-y-4 text-left">
+                            <div className="p-6 space-y-6 animate-in text-left text-left text-left">
+                                <div className="bg-white p-6 rounded-[32px] border shadow-lg space-y-4 text-left text-left text-left">
                                     <p className="text-[10px] font-black text-indigo-600 uppercase italic ml-2 text-left">Nuevo Trabajo Práctico</p>
-                                    <div className="flex gap-2 text-left text-left">
+                                    <div className="flex gap-2 text-left text-left text-left">
                                         <input value={fTP.name} onChange={e=>setFTP({name:e.target.value})} placeholder="Nombre del TP..." className="flex-1 p-4 bg-slate-50 rounded-2xl outline-none font-bold text-sm border-2 border-transparent focus:border-indigo-600 transition-all shadow-inner text-left" />
                                         <button onClick={async ()=>{
                                             if(!fTP.name) return;
@@ -597,12 +599,12 @@
                                 </div>
                                 <div className="space-y-3 text-left">
                                     {assignments.filter(a => a.courseId === selectedCourse.id).map(a => (
-                                        <div key={a.id} onClick={()=>{setSelectedTP(a); setScreen('tp-check');}} className="bg-white p-6 rounded-[36px] shadow-sm border flex items-center justify-between group active:scale-95 transition-all cursor-pointer text-left text-left">
-                                            <div className="text-left">
+                                        <div key={a.id} onClick={()=>{setSelectedTP(a); setScreen('tp-check');}} className="bg-white p-6 rounded-[36px] shadow-sm border flex items-center justify-between group active:scale-95 transition-all cursor-pointer text-left text-left text-left">
+                                            <div className="text-left text-left">
                                                <h3 className="font-black text-xs text-slate-800 uppercase leading-tight text-left">{a.name}</h3>
                                                <p className="text-[9px] text-indigo-400 font-black uppercase tracking-widest mt-1 italic text-left">Click para cargar entregas</p>
                                             </div>
-                                            <button onClick={(e)=>{e.stopPropagation(); confirm("¿Eliminar?") && db.collection('artifacts').doc(appId).collection('public').doc('data').collection('assignments').doc(a.id).delete();}} className="text-slate-200 hover:text-red-400"><i data-lucide="trash-2" size={16}></i></button>
+                                            <button onClick={(e)=>{e.stopPropagation(); confirm("¿Eliminar?") && db.collection('artifacts').doc(appId).collection('public').doc('data').collection('assignments').doc(a.id).delete();}} className="text-slate-200 hover:text-red-400 text-right"><i data-lucide="trash-2" size={16}></i></button>
                                         </div>
                                     ))}
                                 </div>
@@ -610,15 +612,15 @@
                         )}
 
                         {screen === 'tp-check' && selectedTP && selectedCourse && (
-                            <div className="p-6 space-y-4 animate-in pb-20 text-left">
-                                <div className="bg-indigo-50 p-6 rounded-[40px] border border-indigo-100 flex justify-between items-center shadow-inner">
-                                    <div className="text-left text-left">
+                            <div className="p-6 space-y-4 animate-in pb-20 text-left text-left text-left text-left text-left">
+                                <div className="bg-indigo-50 p-6 rounded-[40px] border border-indigo-100 flex justify-between items-center shadow-inner text-left text-left">
+                                    <div className="text-left text-left text-left">
                                        <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest italic text-left">{selectedCourse.name}</p>
                                        <h2 className="text-xl font-black text-indigo-800 uppercase text-left">{selectedTP.name}</h2>
                                     </div>
-                                    <div className="text-right text-right">
+                                    <div className="text-right text-right text-right">
                                        <p className="text-3xl font-black text-indigo-700 text-right">{deliveries.filter(d => d.tpId === selectedTP.id && d.status === 'Entregado').length} / {selectedCourse.students.length}</p>
-                                       <p className="text-[8px] font-black uppercase text-indigo-400 italic text-right">Entregas</p>
+                                       <p className="text-[8px] font-black uppercase text-indigo-400 italic text-right text-right">Entregas</p>
                                     </div>
                                 </div>
                                 <div className="space-y-2 text-left">
@@ -626,10 +628,10 @@
                                         const d = deliveries.find(x => x.tpId === selectedTP.id && x.studentName === s);
                                         const status = d ? d.status : 'Pendiente';
                                         return (
-                                            <div key={idx} className={`flex items-center justify-between p-4 rounded-3xl border transition-all cursor-pointer ${status === 'Entregado' ? 'bg-green-50 border-green-200' : 'bg-white border-slate-100 shadow-sm'}`}
+                                            <div key={idx} className={`flex items-center justify-between p-4 rounded-3xl border transition-all cursor-pointer ${status === 'Entregado' ? 'bg-green-50 border-green-200' : 'bg-white border-slate-100 shadow-sm'} text-left text-left`}
                                                  onClick={()=>toggleTP(s, selectedTP.id, status)}>
-                                                <span className={`text-[10px] font-black uppercase truncate flex-1 pr-4 text-left ${status === 'Entregado' ? 'text-green-700' : 'text-slate-500'}`}>{s}</span>
-                                                <div className={`px-4 py-2 rounded-2xl font-black text-[9px] uppercase tracking-widest transition-all ${status === 'Entregado' ? 'bg-green-600 text-white shadow-md' : 'bg-slate-50 text-slate-400'} text-right`}>{status}</div>
+                                                <span className={`text-[10px] font-black uppercase truncate flex-1 pr-4 text-left ${status === 'Entregado' ? 'text-green-700' : 'text-slate-500'} text-left text-left`}>{s}</span>
+                                                <div className={`px-4 py-2 rounded-2xl font-black text-[9px] uppercase tracking-widest transition-all ${status === 'Entregado' ? 'bg-green-600 text-white shadow-md' : 'bg-slate-50 text-slate-400'} text-right text-right`}>{status}</div>
                                             </div>
                                         );
                                     })}
@@ -638,29 +640,29 @@
                         )}
 
                         {screen === 'sel-qr' && (
-                            <div className="p-6 space-y-3 animate-in text-left">
+                            <div className="p-6 space-y-3 animate-in text-left text-left text-left">
                                 {courses.map(c => (
-                                    <button key={c.id} onClick={()=>{setSelectedCourse(c); setScreen('qr-gen');}} className="w-full bg-white p-6 rounded-[32px] border flex justify-between items-center shadow-sm text-left active:scale-95 transition-all">
+                                    <button key={c.id} onClick={()=>{setSelectedCourse(c); setScreen('qr-gen');}} className="w-full bg-white p-6 rounded-[32px] flex justify-between items-center shadow-sm border active:scale-95 transition-all text-left">
                                         <span className="font-black uppercase text-xs text-slate-700 text-left">{c.name}</span>
-                                        <i data-lucide="printer" className="text-indigo-600"></i>
+                                        <i data-lucide="printer" className="text-indigo-600 text-right text-right"></i>
                                     </button>
                                 ))}
                             </div>
                         )}
 
                         {screen === 'qr-gen' && selectedCourse && (
-                            <div className="p-6 space-y-6 animate-in text-left">
-                                <button onClick={()=>window.print()} className="no-print w-full bg-indigo-600 text-white p-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg flex items-center justify-center gap-2">
+                            <div className="p-6 space-y-6 animate-in text-left text-left text-left text-left">
+                                <button onClick={()=>window.print()} className="no-print w-full bg-indigo-600 text-white p-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg flex items-center justify-center gap-2 text-center text-center">
                                     <i data-lucide="printer" size={16}></i> Imprimir Todo
                                 </button>
-                                <div className="print-grid grid grid-cols-1 gap-4 text-center">
+                                <div className="print-grid grid grid-cols-1 gap-4 text-center text-center text-center">
                                     {selectedCourse.students.map((student, i) => (
-                                        <div key={i} className="bg-white p-6 rounded-[40px] border flex flex-col items-center text-center shadow-sm break-inside-avoid text-center">
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 italic leading-tight text-center">{student}</p>
-                                            <div className="bg-slate-50 p-4 rounded-3xl mb-4 text-center">
+                                        <div key={i} className="bg-white p-6 rounded-[40px] border flex flex-col items-center text-center shadow-sm break-inside-avoid text-center text-center">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 italic leading-tight text-center text-center text-center">{student}</p>
+                                            <div className="bg-slate-50 p-4 rounded-3xl mb-4 text-center text-center">
                                                 <QRCodeLocal value={student} size={150} />
                                             </div>
-                                            <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest italic text-center">{selectedCourse.name}</p>
+                                            <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest italic text-center text-center text-center">{selectedCourse.name}</p>
                                         </div>
                                     ))}
                                 </div>
@@ -669,19 +671,19 @@
                         )}
 
                         {screen === 'sel-report' && (
-                            <div className="p-6 space-y-3 animate-in text-left">
+                            <div className="p-6 space-y-3 animate-in text-left text-left text-left text-left">
                                 {courses.map(c => (
-                                    <button key={c.id} onClick={()=>{setSelectedCourse(c); setScreen('report-view');}} className="w-full bg-white p-6 rounded-[32px] border flex justify-between items-center shadow-sm text-left active:scale-95 transition-all">
+                                    <button key={c.id} onClick={()=>{setSelectedCourse(c); setScreen('report-view');}} className="w-full bg-white p-6 rounded-[32px] flex justify-between items-center shadow-sm border active:scale-95 transition-all text-left text-left">
                                         <span className="font-black uppercase text-xs text-slate-700 text-left">{c.name}</span>
-                                        <i data-lucide="bar-chart-3" className="text-indigo-600"></i>
+                                        <i data-lucide="bar-chart-3" className="text-indigo-600 text-right text-right text-right"></i>
                                     </button>
                                 ))}
                             </div>
                         )}
 
                         {screen === 'report-view' && selectedCourse && (
-                            <div className="p-6 space-y-4 animate-in pb-24 text-center text-center">
-                                <div className="flex bg-slate-200 p-1.5 rounded-3xl shadow-inner mb-4 text-center">
+                            <div className="p-6 space-y-4 animate-in pb-24 text-center text-center text-center">
+                                <div className="flex bg-slate-200 p-1.5 rounded-3xl shadow-inner mb-4 text-center text-center">
                                     {['general', 'mensual', 'anual'].map(t => (
                                         <button key={t} onClick={() => setReportTab(t)} className={`flex-1 py-3 text-[10px] font-black uppercase rounded-[22px] transition-all flex items-center justify-center ${reportTab === t ? 'bg-white text-indigo-600 shadow-xl' : 'text-slate-400'} text-center`}>
                                             {t === 'general' ? 'Gral' : t === 'mensual' ? 'Mes' : 'Año'}
@@ -689,43 +691,43 @@
                                     ))}
                                 </div>
                                 {reportTab === 'general' ? (
-                                    <div className="bg-white rounded-[40px] border overflow-hidden shadow-xl animate-in text-center text-center">
-                                        <table className="w-full text-xs border-collapse text-center">
-                                            <thead className="bg-slate-50 text-[8px] font-black uppercase text-slate-400 border-b text-center">
+                                    <div className="bg-white rounded-[40px] border overflow-hidden shadow-xl animate-in text-center text-center text-center">
+                                        <table className="w-full text-xs border-collapse text-center text-center">
+                                            <thead className="bg-slate-50 text-[8px] font-black uppercase text-slate-400 border-b text-center text-center">
                                                 <tr><th className="p-4 text-left">Alumno</th><th>P</th><th>T</th><th>A</th><th className="p-4 text-right">%</th></tr>
                                             </thead>
-                                            <tbody className="divide-y divide-slate-50 text-center">
+                                            <tbody className="divide-y divide-slate-50 text-center text-center">
                                                 {reportStats.map((s, i) => (
-                                                    <tr key={i} className="active:bg-slate-50 text-center">
-                                                        <td className="p-4 text-left font-black text-slate-700 text-[9px] uppercase italic truncate max-w-[140px] text-left">{s.name}</td>
-                                                        <td className="text-green-600 font-bold text-center">{s.p}</td>
-                                                        <td className="text-amber-500 font-bold text-center">{s.t}</td>
-                                                        <td className="text-red-500 font-bold text-center">{s.a}</td>
-                                                        <td className={`p-4 text-right font-black ${s.perc > 80 ? 'text-green-600' : 'text-red-500'} text-right`}>{s.perc}%</td>
+                                                    <tr key={i} className="active:bg-slate-50 text-center text-center">
+                                                        <td className="p-4 text-left font-black text-slate-700 text-[9px] uppercase italic truncate max-w-[120px] text-left text-left">{s.name}</td>
+                                                        <td className="text-green-600 font-bold text-center text-center">{s.p}</td>
+                                                        <td className="text-amber-500 font-bold text-center text-center">{s.t}</td>
+                                                        <td className="text-red-500 font-bold text-center text-center">{s.a}</td>
+                                                        <td className={`p-4 text-right font-black ${s.perc > 80 ? 'text-green-600' : 'text-red-500'} text-right text-right`}>{s.perc}%</td>
                                                     </tr>
                                                 ))}
                                             </tbody>
                                         </table>
                                     </div>
                                 ) : (
-                                    <div className="space-y-4 text-left text-left">
+                                    <div className="space-y-4 text-left text-left text-left">
                                         {reportStats.map((s, i) => (
-                                            <div key={i} className="bg-white p-6 rounded-[40px] shadow-sm border space-y-4 animate-in text-left">
-                                                <div className="flex justify-between items-start text-left text-left">
-                                                    <div className="max-w-[70%] text-left">
-                                                        <p className="font-black text-slate-800 text-[11px] uppercase leading-tight italic text-left">{s.name}</p>
-                                                        <p className="text-[8px] font-black text-slate-400 uppercase mt-1 tracking-widest italic text-left">{reportTab === 'mensual' ? 'Resumen Mensual' : 'Resumen Anual'}</p>
+                                            <div key={i} className="bg-white p-6 rounded-[40px] shadow-sm border space-y-4 animate-in text-left text-left">
+                                                <div className="flex justify-between items-start text-left text-left text-left">
+                                                    <div className="max-w-[70%] text-left text-left">
+                                                        <p className="font-black text-slate-800 text-[11px] uppercase leading-tight italic text-left text-left">{s.name}</p>
+                                                        <p className="text-[8px] font-black text-slate-400 uppercase mt-1 tracking-widest italic text-left text-left">{reportTab === 'mensual' ? 'Resumen Mensual' : 'Resumen Anual'}</p>
                                                     </div>
-                                                    <div className={`px-4 py-2 rounded-2xl font-black text-xs ${s.perc > 80 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'} text-right`}>{s.perc}%</div>
+                                                    <div className={`px-4 py-2 rounded-2xl font-black text-xs ${s.perc > 80 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'} text-right text-right text-right`}>{s.perc}%</div>
                                                 </div>
-                                                <div className="space-y-2 text-center text-center">
+                                                <div className="space-y-2 text-center text-center text-center">
                                                     {(reportTab === 'mensual' ? Object.entries(s.monthly) : Object.entries(s.yearly)).sort().reverse().map(([k, d]) => (
-                                                        <div key={k} className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border text-center">
-                                                            <span className="text-[9px] font-black text-slate-400 uppercase italic text-left">{reportTab === 'mensual' ? MONTHS_ES[k] : k}</span>
-                                                            <div className="flex space-x-3 text-center text-center">
-                                                                <div className="text-center text-center"><p className="text-[11px] font-black text-green-600 leading-none text-center">{d.p}</p><p className="text-[6px] font-black text-green-400 uppercase text-center">P</p></div>
-                                                                <div className="text-center text-center"><p className="text-[11px] font-black text-amber-600 leading-none text-center">{d.t}</p><p className="text-[6px] font-black text-amber-500 uppercase text-center">T</p></div>
-                                                                <div className="text-center text-center"><p className="text-[11px] font-black text-red-600 leading-none text-center">{d.a}</p><p className="text-[6px] font-black text-red-400 uppercase text-center">A</p></div>
+                                                        <div key={k} className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border text-center text-center">
+                                                            <span className="text-[9px] font-black text-slate-400 uppercase italic text-left text-left">{reportTab === 'mensual' ? MONTHS_ES[k] : k}</span>
+                                                            <div className="flex space-x-3 text-center text-center text-center">
+                                                                <div className="text-center text-center text-center"><p className="text-[11px] font-black text-green-600 leading-none text-center text-center">{d.p}</p><p className="text-[6px] font-black text-green-400 uppercase text-center text-center text-center">P</p></div>
+                                                                <div className="text-center text-center text-center"><p className="text-[11px] font-black text-amber-600 leading-none text-center text-center text-center">{d.t}</p><p className="text-[6px] font-black text-amber-500 uppercase text-center text-center text-center">T</p></div>
+                                                                <div className="text-center text-center text-center"><p className="text-[11px] font-black text-red-600 leading-none text-center text-center text-center">{d.a}</p><p className="text-[6px] font-black text-red-400 uppercase text-center text-center text-center">A</p></div>
                                                             </div>
                                                         </div>
                                                     ))}
@@ -744,12 +746,12 @@
         const MenuBtn = ({ icon, label, onClick, color = "text-slate-600" }) => {
             useEffect(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, []);
             return (
-                <button onClick={onClick} className="flex flex-col items-center justify-center p-7 bg-white rounded-[40px] shadow-lg border border-slate-50 active:scale-90 transition-all cursor-pointer relative overflow-hidden group text-center">
+                <button onClick={onClick} className="flex flex-col items-center justify-center p-7 bg-white rounded-[40px] shadow-lg border border-slate-50 active:scale-90 transition-all cursor-pointer relative overflow-hidden group text-center text-center">
                     <div className="absolute inset-0 bg-indigo-50/0 group-active:bg-indigo-50/100 transition-all text-center"></div>
-                    <div className={`${color} mb-3 group-hover:scale-110 transition-transform relative z-10 flex items-center justify-center text-center`}>
+                    <div className={`${color} mb-3 group-hover:scale-110 transition-transform relative z-10 flex items-center justify-center text-center text-center`}>
                         <i data-lucide={icon} size={30}></i>
                     </div>
-                    <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest text-center leading-none mt-1 italic relative z-10 text-center">{label}</span>
+                    <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest text-center leading-none mt-1 italic relative z-10 text-center text-center">{label}</span>
                 </button>
             );
         };
