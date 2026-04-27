@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Assistant Day - Control Docente Pro</title>
+    <title>Assistant Day Pro</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -13,41 +13,62 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
+    <!-- Librería para Escaneo QR Real -->
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    
+    <!-- Firebase SDK Compat -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; margin: 0; overflow-x: hidden; -webkit-tap-highlight-color: transparent; }
+        @import url('https://fonts.googleapis.com/css2?family=Urbanist:wght@400;600;700;900&display=swap');
+        :root { --primary: #4f46e5; --success: #22c55e; --danger: #ef4444; --bg: #f8fafc; }
+        body { font-family: 'Urbanist', sans-serif; background-color: var(--bg); margin: 0; overflow-x: hidden; -webkit-tap-highlight-color: transparent; }
+        .app-container { max-width: 480px; margin: 0 auto; background: white; min-height: 100vh; position: relative; display: flex; flex-direction: column; box-shadow: 0 0 40px rgba(0,0,0,0.05); }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-        .app-container { max-width: 450px; margin: 0 auto; background: white; min-height: 100vh; position: relative; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); }
-        .animate-fade-in { animation: fadeIn 0.3s ease-out; }
+        .animate-in { animation: fadeIn 0.3s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(30%) sepia(100%) saturate(500%) hue-rotate(200deg); }
-        .no-wrap { flex-wrap: nowrap !important; }
+        
+        #reader { border: none !important; border-radius: 48px; overflow: hidden; }
+        #reader video { object-fit: cover !important; }
+
+        @media print {
+            .no-print { display: none !important; }
+            .app-container { max-width: 100% !important; box-shadow: none !important; }
+            .print-grid { display: grid !important; grid-template-cols: repeat(3, 1fr) !important; gap: 10px !important; }
+        }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+        const { useState, useEffect, useMemo, useRef } = React;
 
-        // --- CONFIGURACIÓN FIREBASE (Se conecta a tu cuenta) ---
-        const firebaseConfig = JSON.parse(window.__firebase_config || '{}');
-        const appId = window.__app_id || 'assistant-day-pro-v2';
+        const firebaseConfig = {
+            apiKey: "AIzaSyD1X8hYd2_chuDtkeTuY5z3bRP9wkFonOM",
+            authDomain: "assistant-day.firebaseapp.com",
+            projectId: "assistant-day",
+            storageBucket: "assistant-day.firebasestorage.app",
+            messagingSenderId: "463561387355",
+            appId: "1:463561387355:web:ad4e586279a5ea24cc3e7e"
+        };
+
+        const appId = 'assistant-day-pro-v2';
         const GS_API_URL = "https://script.google.com/macros/s/AKfycbzoPRSNulMx4LJ3vfX70mP5oUFAgjetbN4J7wJNOw1oYtfRDMZjSaRAArPVsK9c8Y3_/exec";
 
-        const firebaseApp = firebase.initializeApp(firebaseConfig);
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
         const auth = firebase.auth();
         const db = firebase.firestore();
 
-        const DAYS_MAP = [
-            { id: 0, label: 'Dom' }, { id: 1, label: 'Lun' }, { id: 2, label: 'Mar' },
-            { id: 3, label: 'Mie' }, { id: 4, label: 'Jue' }, { id: 5, label: 'Vie' },
-            { id: 6, label: 'Sab' }
+        const DAYS_ES = [
+            { id: 0, label: 'Domingo' }, { id: 1, label: 'Lunes' }, { id: 2, label: 'Martes' },
+            { id: 3, label: 'Miércoles' }, { id: 4, label: 'Jueves' }, { id: 5, label: 'Viernes' },
+            { id: 6, label: 'Sábado' }
         ];
 
         const MONTHS_ES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
@@ -55,31 +76,43 @@
         function App() {
             const [user, setUser] = useState(null);
             const [loading, setLoading] = useState(true);
-            const [currentScreen, setCurrentScreen] = useState('home');
+            const [authError, setAuthError] = useState(null);
+            const [screen, setScreen] = useState('home');
+            
             const [courses, setCourses] = useState([]);
             const [records, setRecords] = useState([]);
             const [assignments, setAssignments] = useState([]);
             const [deliveries, setDeliveries] = useState([]);
+
             const [selectedCourse, setSelectedCourse] = useState(null);
             const [selectedTP, setSelectedTP] = useState(null);
-            const [statsTab, setStatsTab] = useState('general');
-            const [notifications, setNotifications] = useState([]);
-            const [isSyncing, setIsSyncing] = useState(false);
-
-            // Formularios
-            const [newCourseName, setNewCourseName] = useState('');
-            const [newCourseStudents, setNewCourseStudents] = useState('');
-            const [dynamicSchedule, setDynamicSchedule] = useState({});
-            const [newTPName, setNewTPName] = useState('');
             const [sessionAttendance, setSessionAttendance] = useState([]);
+            const [reportTab, setReportTab] = useState('general');
+            
+            const [toast, setToast] = useState(null);
+            const [isSaving, setIsSaving] = useState(false);
+            
+            const qrScannerRef = useRef(null);
+            const lastProcessedRef = useRef(null); 
+            const processedNamesInSession = useRef(new Set());
+
+            const [fCourse, setFCourse] = useState({ name: '', students: '', schedule: {} });
+            const [fTP, setFTP] = useState({ name: '' });
 
             useEffect(() => {
                 const initAuth = async () => {
                     try {
-                        const token = window.__initial_auth_token;
-                        if (token) { await auth.signInWithCustomToken(token); } 
-                        else { await auth.signInAnonymously(); }
-                    } catch (e) { console.error("Auth:", e); }
+                        await auth.signInAnonymously();
+                    } catch (e) { 
+                        console.error("Auth Error:", e);
+                        if (e.code === 'auth/configuration-not-found') {
+                            setAuthError('Autenticación anónima no habilitada en la consola.');
+                        } else {
+                            setAuthError(e.message);
+                        }
+                    } finally {
+                        setLoading(false);
+                    }
                 };
                 initAuth();
                 const unsubscribe = auth.onAuthStateChanged(u => {
@@ -90,385 +123,636 @@
 
             useEffect(() => {
                 if (!user) return;
-                setLoading(true);
                 const colBase = db.collection('artifacts').doc(appId).collection('public').doc('data');
 
-                const unsubCourses = colBase.collection('courses').onSnapshot(snap => {
+                const unsubC = colBase.collection('courses').onSnapshot(snap => {
                     setCourses(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-                    setLoading(false);
-                }, err => console.error(err));
-
-                const unsubRecords = colBase.collection('attendance').onSnapshot(snap => {
-                    setRecords(snap.docs.map(d => d.data()));
-                }, err => console.error(err));
-
-                const unsubAssignments = colBase.collection('assignments').onSnapshot(snap => {
+                });
+                const unsubA = colBase.collection('attendance').onSnapshot(snap => {
+                    setRecords(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+                });
+                const unsubAs = colBase.collection('assignments').onSnapshot(snap => {
                     setAssignments(snap.docs.map(d => ({ id: d.id, ...d.data() })));
                 });
-
-                const unsubDeliveries = colBase.collection('deliveries').onSnapshot(snap => {
+                const unsubD = colBase.collection('deliveries').onSnapshot(snap => {
                     setDeliveries(snap.docs.map(d => ({ id: d.id, ...d.data() })));
                 });
 
-                return () => { unsubCourses(); unsubRecords(); unsubAssignments(); unsubDeliveries(); };
+                return () => { unsubC(); unsubA(); unsubAs(); unsubD(); };
             }, [user]);
 
-            const addNotification = (msg, type = 'info') => {
-                const id = Date.now();
-                setNotifications(prev => [...prev, { id, msg, type }]);
-                setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 3000);
+            const showToast = (msg, type = 'success') => {
+                setToast({ msg, type });
+                setTimeout(() => setToast(null), 3000);
             };
 
-            const goToHome = () => {
-                setSelectedTP(null);
-                setSelectedCourse(null);
-                setCurrentScreen('home');
-                setSessionAttendance([]);
-                setStatsTab('general');
-            };
-
-            // --- LÓGICA DE ASISTENCIA ---
-            const handleScan = (name) => {
-                if (sessionAttendance.find(s => s.name === name)) return addNotification("Ya registrado", "info");
-                const now = new Date();
-                const todayDay = now.getDay();
-                const todaySched = selectedCourse.schedule?.find(s => s.day === todayDay);
-                let status = 'Presente';
-                
-                if (todaySched) {
-                    const [schedH, schedM] = todaySched.time.split(':').map(Number);
-                    const limit = new Date();
-                    limit.setHours(schedH, schedM + 10, 0); 
-                    if (now > limit) status = 'Presente con retraso';
+            const speak = (text) => {
+                if ('speechSynthesis' in window) {
+                    window.speechSynthesis.cancel();
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.lang = 'es-ES';
+                    utterance.rate = 1;
+                    window.speechSynthesis.speak(utterance);
                 }
-
-                setSessionAttendance(prev => [...prev, {
-                    name, course: selectedCourse.name, date: now.toISOString().split('T')[0],
-                    time: now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-                    status, type: 'Asistencia'
-                }]);
-                addNotification(`${name.split(' ').pop()}: OK`, "success");
-            };
-
-            const finalizeAttendance = async () => {
-                setIsSyncing(true);
-                const today = new Date().toISOString().split('T')[0];
-                const absentees = selectedCourse.students
-                    .filter(n => !sessionAttendance.find(s => s.name === n))
-                    .map(n => ({ name: n, course: selectedCourse.name, date: today, time: '--:--', status: 'Ausente', type: 'Asistencia' }));
-                
-                const all = [...sessionAttendance, ...absentees];
-                try {
-                    const col = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('attendance');
-                    for (const rec of all) {
-                        await col.add(rec);
-                        if (GS_API_URL) fetch(GS_API_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(rec) });
-                    }
-                    goToHome();
-                    addNotification("Asistencia guardada", "success");
-                } catch (e) { addNotification("Error al sincronizar", "error"); }
-                setIsSyncing(false);
             };
 
             const todaySummary = useMemo(() => {
                 const today = new Date().toISOString().split('T')[0];
-                const todayRecords = records.filter(r => r.date === today);
-                const totalP = todayRecords.filter(r => r.status === 'Presente').length;
-                const totalT = todayRecords.filter(r => r.status === 'Presente con retraso').length;
-                const totalA = todayRecords.filter(r => r.status === 'Ausente').length;
-                const courseStats = courses.map(c => {
-                    const recs = todayRecords.filter(r => r.course === c.name);
-                    return { name: c.name, p: recs.filter(r => r.status === 'Presente').length, t: recs.filter(r => r.status === 'Presente con retraso').length, a: recs.filter(r => r.status === 'Ausente').length };
-                }).filter(c => c.p + c.t + c.a > 0);
-                return { totalP, totalT, totalA, courseStats };
-            }, [records, courses]);
+                const recs = records.filter(r => r.date === today);
+                return {
+                    p: recs.filter(r => r.status && r.status.includes('Presente')).length,
+                    a: recs.filter(r => r.status === 'Ausente').length
+                };
+            }, [records]);
 
-            const statsData = useMemo(() => {
-                if (!selectedCourse) return null;
+            const reportStats = useMemo(() => {
+                if (!selectedCourse) return [];
                 const courseRecs = records.filter(r => r.course === selectedCourse.name);
-                const studentList = selectedCourse.students.map(name => {
-                    const personal = courseRecs.filter(r => r.name === name);
-                    const p = personal.filter(r => r.status === 'Presente').length;
-                    const t = personal.filter(r => r.status === 'Presente con retraso').length;
-                    const a = personal.filter(r => r.status === 'Ausente').length;
+                
+                return selectedCourse.students.map(name => {
+                    const studentRecs = courseRecs.filter(r => r.name === name);
+                    const p = studentRecs.filter(r => r.status === 'Presente').length;
+                    const t = studentRecs.filter(r => r.status === 'Presente con retraso').length;
+                    const a = studentRecs.filter(r => r.status === 'Ausente').length;
                     const total = p + t + a;
-                    const monthly = {}; const yearly = {};
-                    personal.forEach(r => {
+                    const perc = total === 0 ? 0 : Math.round(((p + t) / total) * 100);
+
+                    const monthly = {};
+                    const yearly = {};
+
+                    studentRecs.forEach(r => {
                         const d = new Date(r.date);
-                        const mKey = `${d.getFullYear()}-${d.getMonth()}`;
-                        const yKey = `${d.getFullYear()}`;
-                        if (!monthly[mKey]) monthly[mKey] = { p: 0, t: 0, a: 0 };
-                        if (!yearly[yKey]) yearly[yKey] = { p: 0, t: 0, a: 0 };
-                        if (r.status === 'Presente') { monthly[mKey].p++; yearly[yKey].p++; }
-                        else if (r.status === 'Presente con retraso') { monthly[mKey].t++; yearly[yKey].t++; }
-                        else if (r.status === 'Ausente') { monthly[mKey].a++; yearly[yKey].a++; }
+                        const mKey = d.getMonth();
+                        const yKey = d.getFullYear();
+                        if(!monthly[mKey]) monthly[mKey] = { p: 0, t: 0, a: 0 };
+                        if(!yearly[yKey]) yearly[yKey] = { p: 0, t: 0, a: 0 };
+                        if(r.status === 'Presente') { monthly[mKey].p++; yearly[yKey].p++; }
+                        else if(r.status === 'Presente con retraso') { monthly[mKey].t++; yearly[yKey].t++; }
+                        else { monthly[mKey].a++; yearly[yKey].a++; }
                     });
-                    return { name, p, t, a, percentage: total === 0 ? 0 : Math.round(((p+t)/total)*100), monthly, yearly };
+
+                    return { name, p, t, a, perc, monthly, yearly };
                 });
-                return { studentList, totalSessions: [...new Set(courseRecs.map(r => r.date))].length };
             }, [records, selectedCourse]);
 
-            if (loading) return <div className="flex h-screen items-center justify-center bg-indigo-700 text-white font-black uppercase text-xs tracking-widest italic">Conectando...</div>;
+            const handleBack = () => {
+                if (qrScannerRef.current) {
+                    qrScannerRef.current.stop().catch(console.error);
+                }
+                setScreen('home');
+                setSelectedTP(null);
+                setSelectedCourse(null);
+                setSessionAttendance([]);
+                setIsSaving(false);
+                processedNamesInSession.current.clear();
+            };
+
+            const saveCourse = async () => {
+                if(!fCourse.name || !fCourse.students) return;
+                const path = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('courses');
+                // Limpieza profunda de nombres al guardar
+                const cleanStudentList = fCourse.students
+                    .split('\n')
+                    .map(s => s.trim().toUpperCase().replace(/[\u200B-\u200D\uFEFF]/g, ''))
+                    .filter(s => s !== "");
+
+                await path.add({
+                    name: fCourse.name.trim(),
+                    students: cleanStudentList,
+                    schedule: fCourse.schedule,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                setFCourse({name:'', students:'', schedule:{}});
+                setScreen('home');
+                showToast("Curso guardado");
+            };
+
+            const handleScan = (decodedText) => {
+                const nowTime = Date.now();
+                if (lastProcessedRef.current && (nowTime - lastProcessedRef.current < 2000)) return;
+                lastProcessedRef.current = nowTime;
+
+                // LIMPIEZA PROFUNDA: Quita espacios invisibles, saltos de línea y carácteres de control
+                let cleanName = decodedText.trim().toUpperCase()
+                    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+                    .replace(/\r?\n|\r/g, "");
+
+                // Quitar IDs o Prefijos si existen (Ej: "ID:123 - JUAN" -> "JUAN")
+                if (cleanName.includes("-")) {
+                    cleanName = cleanName.split("-").pop().trim();
+                } else if (cleanName.includes(":")) {
+                    cleanName = cleanName.split(":").pop().trim();
+                }
+
+                // Validación contra la lista del curso con normalización extra
+                const foundInCourse = selectedCourse.students.some(s => s.trim() === cleanName);
+
+                if (!foundInCourse) {
+                    showToast(`No encontrado: ${cleanName}`, "error");
+                    return;
+                }
+
+                if (processedNamesInSession.current.has(cleanName)) {
+                    speak("Ya registrado");
+                    showToast(`${cleanName}: YA REGISTRADO`, "error");
+                    return;
+                }
+
+                processedNamesInSession.current.add(cleanName);
+
+                const now = new Date();
+                const todayDay = now.getDay();
+                let status = 'Presente';
+                
+                if (selectedCourse.schedule && selectedCourse.schedule[todayDay]) {
+                    const [h, m] = selectedCourse.schedule[todayDay].split(':').map(Number);
+                    const limit = new Date(); limit.setHours(h, m + 15, 0); 
+                    if (now > limit) status = 'Presente con retraso';
+                }
+
+                speak(cleanName);
+                showToast(`${cleanName} ✓`, "success");
+                
+                setSessionAttendance(prev => [...prev, {
+                    name: cleanName, course: selectedCourse.name, date: now.toISOString().split('T')[0],
+                    time: now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
+                    status
+                }]);
+            };
+
+            const startScanner = () => {
+                const html5QrCode = new Html5Qrcode("reader");
+                qrScannerRef.current = html5QrCode;
+                const config = { fps: 15, qrbox: { width: 250, height: 250 } };
+                
+                html5QrCode.start(
+                    { facingMode: "environment" }, 
+                    config, 
+                    (decodedText) => handleScan(decodedText)
+                ).catch(err => {
+                    console.error(err);
+                    showToast("Error al abrir cámara", "error");
+                });
+            };
+
+            useEffect(() => {
+                if (screen === 'asist-run' && selectedCourse) {
+                    processedNamesInSession.current.clear();
+                    const today = new Date().toISOString().split('T')[0];
+                    const alreadyDone = records.some(r => r.course === selectedCourse.name && r.date === today);
+                    
+                    if (alreadyDone) {
+                        showToast("Editando lista de hoy...", "info");
+                    }
+
+                    setTimeout(startScanner, 500);
+                }
+                return () => {
+                    if (qrScannerRef.current) qrScannerRef.current.stop().catch(() => {});
+                };
+            }, [screen]);
+
+            const finalizeAsistencia = async () => {
+                if (sessionAttendance.length === 0) {
+                    showToast("No hay alumnos escaneados", "error");
+                    return;
+                }
+
+                setIsSaving(true);
+                const path = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('attendance');
+                const today = new Date().toISOString().split('T')[0];
+                
+                try {
+                    const existingDocs = await path.get();
+                    const toDelete = existingDocs.docs.filter(d => {
+                        const data = d.data();
+                        return data.course === selectedCourse.name && data.date === today;
+                    });
+                    
+                    const batch = db.batch();
+                    toDelete.forEach(doc => batch.delete(doc.ref));
+
+                    const presentes = sessionAttendance;
+                    const ausentes = selectedCourse.students
+                        .filter(n => !sessionAttendance.find(s => s.name === n))
+                        .map(n => ({ 
+                            name: n, 
+                            course: selectedCourse.name, 
+                            date: today, 
+                            status: 'Ausente', 
+                            time: '--:--', 
+                            type: 'Asistencia' 
+                        }));
+                    
+                    const all = [...presentes, ...ausentes];
+                    all.forEach(rec => {
+                        const docRef = path.doc();
+                        batch.set(docRef, rec);
+                        if (GS_API_URL) fetch(GS_API_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(rec) });
+                    });
+
+                    await batch.commit();
+                    showToast("Lista actualizada correctamente");
+                    handleBack();
+                } catch (e) {
+                    console.error(e);
+                    showToast("Error al guardar", "error");
+                    setIsSaving(false);
+                }
+            };
+
+            const toggleTP = async (studentName, tpId, currentStatus) => {
+                const path = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('deliveries');
+                const docId = `${tpId}_${studentName.replace(/\s+/g, '_')}`;
+                const nStatus = currentStatus === 'Entregado' ? 'Pendiente' : 'Entregado';
+                if (nStatus === 'Entregado') {
+                    await path.doc(docId).set({ tpId, studentName, status: nStatus, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+                } else {
+                    await path.doc(docId).delete();
+                }
+            };
+
+            const deleteCourse = async (id) => {
+                if(!confirm("¿Estás seguro de eliminar este curso? Se perderán los datos vinculados.")) return;
+                await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('courses').doc(id).delete();
+                showToast("Curso eliminado");
+            };
+
+            const clearAllAttendance = async () => {
+                if(!confirm("¿BORRAR TODO EL HISTORIAL DE ASISTENCIAS? Esta acción no se puede deshacer.")) return;
+                const path = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('attendance');
+                const snap = await path.get();
+                const batch = db.batch();
+                snap.docs.forEach(doc => batch.delete(doc.ref));
+                await batch.commit();
+                showToast("Historial borrado", "success");
+            };
+
+            if (authError) return (
+                <div className="flex h-screen flex-col items-center justify-center bg-red-50 p-6 text-center animate-in">
+                    <div className="mb-4 text-red-500"><i data-lucide="alert-circle" size={48}></i></div>
+                    <h2 className="text-xl font-black text-red-800 mb-2 uppercase italic tracking-tighter">Fallo de Conexión</h2>
+                    <p className="text-red-600 mb-6 font-semibold text-xs">{authError}</p>
+                    <div className="bg-white p-6 rounded-3xl shadow-xl text-left text-sm text-slate-600 border border-red-100 max-w-sm">
+                        <p className="font-black mb-3 uppercase tracking-wider text-[10px] text-red-400 italic">Qué hacer:</p>
+                        <ol className="list-decimal pl-5 space-y-2 font-bold text-xs uppercase tracking-tight">
+                            <li>Habilitar el proveedor "Anónimo" en Firebase.</li>
+                            <li>Recargar la página.</li>
+                        </ol>
+                    </div>
+                </div>
+            );
+
+            if (loading) return <div className="flex h-screen items-center justify-center bg-indigo-700 text-white font-black uppercase text-xs tracking-widest animate-pulse italic">Iniciando Assistant Day...</div>;
 
             return (
                 <div className="app-container">
-                    {/* NOTIFICACIONES */}
-                    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-full max-w-[300px] space-y-2 pointer-events-none px-4">
-                        {notifications.map(n => (
-                            <div key={n.id} className={`p-4 rounded-2xl shadow-xl border-l-4 font-black text-[10px] uppercase flex items-center bg-white animate-bounce ${n.type === 'success' ? 'border-green-500 text-green-700' : 'border-red-500 text-red-700'}`}>
-                                {n.msg}
-                            </div>
-                        ))}
-                    </div>
+                    {toast && (
+                        <div className={`fixed top-10 left-1/2 -translate-x-1/2 z-[100] px-6 py-4 rounded-3xl shadow-2xl animate-in font-black text-xs uppercase tracking-widest flex items-center gap-3 border ${toast.type === 'success' ? 'bg-green-500 text-white border-green-400' : toast.type === 'info' ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-red-500 text-white border-red-400'}`}>
+                            {toast.type === 'success' ? <i data-lucide="check-circle-2"></i> : <i data-lucide="info"></i>}
+                            {toast.msg}
+                        </div>
+                    )}
 
-                    {/* CABECERA */}
-                    {currentScreen !== 'home' && (
-                        <div className="bg-indigo-700 text-white p-6 flex items-center shadow-lg sticky top-0 z-50">
-                            <button onClick={goToHome} className="p-2 bg-white/10 rounded-full mr-4"><i data-lucide="chevron-left"></i></button>
-                            <h1 className="font-black uppercase text-[10px] tracking-widest truncate flex-1 text-center italic">
-                                {currentScreen === 'report' ? `Reporte: ${selectedCourse?.name}` : currentScreen === 'tp-check' ? `TP: ${selectedTP?.name}` : currentScreen === 'asist' ? 'Pasar Lista' : currentScreen === 'daily-summary' ? 'Resumen de Hoy' : selectedCourse?.name || "Assistant Day"}
+                    {screen !== 'home' && (
+                        <div className="bg-indigo-700 text-white p-6 pb-12 rounded-b-[40px] shadow-lg sticky top-0 z-50 flex items-center no-print">
+                            <button onClick={handleBack} className="p-2 bg-white/10 rounded-full active:scale-90 transition-all"><i data-lucide="chevron-left"></i></button>
+                            <h1 className="flex-1 text-center font-black uppercase text-[10px] tracking-widest italic truncate px-4">
+                                {screen === 'manage' ? 'Gestionar' : screen === 'asist-run' ? `Lista: ${selectedCourse?.name}` : screen === 'report-view' ? 'Reportes' : screen === 'qr-gen' ? 'Credenciales' : 'Asistente'}
                             </h1>
                             <div className="w-10"></div>
                         </div>
                     )}
 
-                    {/* INICIO */}
-                    {currentScreen === 'home' && (
-                        <div className="animate-fade-in pb-10">
-                            <div className="bg-indigo-700 text-white p-10 text-center rounded-b-[40px] shadow-2xl relative overflow-hidden">
-                                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
-                                <p className="text-indigo-200 text-[10px] font-black uppercase tracking-[0.4em] mb-2">Panel Docente</p>
-                                <h1 className="text-4xl font-black italic uppercase tracking-tighter">Assistant Day</h1>
-                            </div>
+                    <div className="flex-1 overflow-y-auto scrollbar-hide">
+                        {screen === 'home' && (
+                            <div className="animate-in pb-10">
+                                <div className="bg-indigo-700 text-white p-10 pb-20 rounded-b-[50px] text-center shadow-xl relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 -mr-10 -mt-10 w-48 h-48 bg-white/10 rounded-full blur-3xl"></div>
+                                    <p className="text-indigo-200 text-[10px] font-black uppercase tracking-[0.5em] mb-2 text-center">Panel Docente</p>
+                                    <h1 className="text-5xl font-black uppercase italic tracking-tighter leading-none text-center">Assistant Day</h1>
+                                </div>
 
-                            <div className="px-6 -mt-10 grid grid-cols-2 gap-4">
-                                <HomeCard onClick={() => setCurrentScreen('sel-asist')} icon="qr-code" label="Pasar Lista" color="text-indigo-600" />
-                                <HomeCard onClick={() => setCurrentScreen('sel-tp')} icon="clipboard-list" label="Entrega TP" color="text-indigo-600" />
-                                <HomeCard onClick={() => setCurrentScreen('manage')} icon="settings" label="Gestionar" />
-                                <HomeCard onClick={() => setCurrentScreen('sel-report')} icon="bar-chart-3" label="Reportes" />
-                            </div>
+                                <div className="px-6 -mt-14 grid grid-cols-2 gap-4">
+                                    <MenuBtn icon="qr-code" label="Pasar Lista" color="text-indigo-600" onClick={() => setScreen('sel-asist')} />
+                                    <MenuBtn icon="clipboard-list" label="Entrega TP" color="text-indigo-600" onClick={() => setScreen('sel-tp')} />
+                                    <MenuBtn icon="bar-chart-3" label="Reportes" color="text-slate-500" onClick={() => setScreen('sel-report')} />
+                                    <MenuBtn icon="printer" label="Generar QR" color="text-slate-500" onClick={() => setScreen('sel-qr')} />
+                                    <MenuBtn icon="settings" label="Gestionar" color="text-slate-400" onClick={() => setScreen('manage')} />
+                                </div>
 
-                            {/* BOTÓN RESUMEN DE HOY */}
-                            <div className="px-6 mt-6">
-                                <button onClick={() => setCurrentScreen('daily-summary')} className="w-full bg-white border border-slate-100 rounded-[40px] p-8 shadow-xl active:scale-95 transition-all text-center relative overflow-hidden">
-                                    <div className="absolute top-0 left-0 p-4 opacity-5 text-indigo-700"><i data-lucide="activity" size={48}></i></div>
-                                    <p className="font-black uppercase text-[10px] tracking-widest mb-4 italic text-slate-400">Resumen de Hoy</p>
-                                    <div className="flex justify-around items-center">
-                                        <div className="text-center">
-                                            <p className="text-5xl font-black text-green-600">{todaySummary.totalP + todaySummary.totalT}</p>
-                                            <p className="text-[8px] font-black uppercase mt-1 text-green-600">Presentes</p>
-                                        </div>
-                                        <div className="w-px h-12 bg-slate-100"></div>
-                                        <div className="text-center">
-                                            <p className="text-5xl font-black text-red-600">{todaySummary.totalA}</p>
-                                            <p className="text-[8px] font-black uppercase mt-1 text-red-600">Ausentes</p>
-                                        </div>
-                                    </div>
-                                </button>
-                            </div>
-
-                            <div className="p-6">
-                                <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 px-2 italic">Mis Cursos</h2>
-                                <div className="space-y-3">
-                                    {courses.map(c => (
-                                        <div key={c.id} onClick={() => { setSelectedCourse(c); setCurrentScreen('report'); }} className="bg-slate-50 p-4 rounded-3xl border border-slate-100 flex items-center justify-between active:scale-95 transition-all cursor-pointer">
-                                            <div className="flex items-center space-x-4">
-                                                <div className="w-10 h-10 bg-indigo-100 rounded-2xl flex items-center justify-center text-indigo-600"><i data-lucide="users"></i></div>
-                                                <div><p className="font-black text-slate-800 text-sm uppercase leading-tight">{c.name}</p><p className="text-[8px] text-indigo-400 font-bold uppercase tracking-wider italic">{c.students.length} Alumnos</p></div>
+                                <div className="px-6 mt-8">
+                                    <div className="bg-white p-8 rounded-[40px] shadow-xl border border-slate-100 text-center relative overflow-hidden active:scale-95 transition-all">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 italic text-center">Resumen de Hoy</p>
+                                        <div className="flex justify-around items-center">
+                                            <div className="text-center">
+                                                <p className="text-6xl font-black text-green-600 leading-none">{todaySummary.p}</p>
+                                                <p className="text-[10px] font-black uppercase text-green-500 mt-2 text-center">Presentes</p>
                                             </div>
-                                            <i data-lucide="chevron-right" className="text-slate-200"></i>
+                                            <div className="w-px h-16 bg-slate-100"></div>
+                                            <div className="text-center">
+                                                <p className="text-6xl font-black text-red-600 leading-none">{todaySummary.a}</p>
+                                                <p className="text-[10px] font-black uppercase text-red-400 mt-2 text-center">Ausentes</p>
+                                            </div>
                                         </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* RESTO DE PANTALLAS (Simplificadas para GitHub) */}
-                    {currentScreen === 'daily-summary' && (
-                        <div className="p-6 space-y-6 animate-fade-in">
-                            <div className="bg-white p-6 rounded-[40px] border shadow-sm space-y-4">
-                                <div className="grid grid-cols-3 gap-2">
-                                    <div className="bg-green-50 p-4 rounded-2xl text-center"><p className="text-2xl font-black text-green-600">{todaySummary.totalP}</p><p className="text-[7px] font-black uppercase text-green-400">Pres</p></div>
-                                    <div className="bg-amber-50 p-4 rounded-2xl text-center"><p className="text-2xl font-black text-amber-600">{todaySummary.totalT}</p><p className="text-[7px] font-black uppercase text-amber-400">Tard</p></div>
-                                    <div className="bg-red-50 p-4 rounded-2xl text-center"><p className="text-2xl font-black text-red-600">{todaySummary.totalA}</p><p className="text-[7px] font-black uppercase text-red-400">Aus</p></div>
-                                </div>
-                            </div>
-                            <div className="space-y-3">
-                                {todaySummary.courseStats.map(c => (
-                                    <div key={c.name} className="bg-white p-5 rounded-[32px] border shadow-sm flex justify-between items-center">
-                                        <p className="font-black text-slate-800 text-[10px] uppercase">{c.name}</p>
-                                        <span className="text-[9px] font-black text-indigo-600">P:{c.p} T:{c.t} A:{c.a}</span>
                                     </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
+                                </div>
 
-                    {currentScreen === 'sel-report' && (
-                        <div className="p-6 space-y-3">
-                            {courses.map(c => (
-                                <button key={c.id} onClick={() => { setSelectedCourse(c); setCurrentScreen('report'); }} className="w-full bg-white p-6 rounded-[32px] flex justify-between items-center shadow-sm border active:scale-95 transition-all">
-                                    <span className="font-black text-slate-800 uppercase text-xs">{c.name}</span>
-                                    <i data-lucide="bar-chart-3" className="text-indigo-600"></i>
-                                </button>
-                            ))}
-                        </div>
-                    )}
-
-                    {currentScreen === 'report' && statsData && (
-                        <div className="p-4 space-y-4 animate-fade-in pb-20">
-                            <div className="flex bg-slate-100 p-1 rounded-2xl shadow-inner">
-                                {['general', 'monthly', 'yearly'].map(t => (
-                                    <button key={t} onClick={() => setStatsTab(t)} className={`flex-1 py-3 text-[10px] font-black uppercase rounded-xl transition-all ${statsTab === t ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>{t === 'general' ? 'Global' : t === 'monthly' ? 'Mes' : 'Año'}</button>
-                                ))}
-                            </div>
-                            <div className="bg-white p-6 rounded-[40px] border shadow-sm">
-                                <p className="text-[10px] font-black text-slate-400 uppercase text-center mb-4">Detalle de Asistencia</p>
-                                <div className="space-y-2">
-                                    {statsData.studentList.map(s => (
-                                        <div key={s.name} className="flex justify-between items-center bg-slate-50 p-3 rounded-2xl">
-                                            <span className="text-[9px] font-black text-slate-700 uppercase truncate max-w-[150px]">{s.name}</span>
-                                            <span className="text-[10px] font-black text-indigo-600">{s.percentage}%</span>
-                                        </div>
-                                    ))}
+                                <div className="p-8 text-left">
+                                    <h2 className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-4 px-2 italic">Cursos Activos</h2>
+                                    <div className="space-y-3">
+                                        {courses.map(c => (
+                                            <div key={c.id} className="bg-slate-50 p-5 rounded-[32px] border border-slate-100 flex items-center justify-between shadow-sm">
+                                                <div className="flex items-center space-x-4">
+                                                    <div className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm"><i data-lucide="users" size={20}></i></div>
+                                                    <div>
+                                                        <p className="font-black text-slate-700 uppercase text-xs leading-none">{c.name}</p>
+                                                        <p className="text-[8px] text-indigo-400 font-bold uppercase mt-1 italic tracking-widest">{c.students.length} alumnos</p>
+                                                    </div>
+                                                </div>
+                                                <i data-lucide="chevron-right" className="text-slate-200"></i>
+                                            </div>
+                                        ))}
+                                        {courses.length === 0 && <p className="text-center py-10 font-black text-[10px] text-slate-300 uppercase italic tracking-widest">Sin cursos registrados</p>}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
+                        )}
 
-                    {currentScreen === 'manage' && (
-                        <div className="p-6 space-y-6 pb-20">
-                            <div className="bg-white p-6 rounded-[40px] shadow-xl border space-y-5">
-                                <label className="text-[10px] font-black uppercase text-indigo-600 tracking-widest italic">Nuevo Curso</label>
-                                <input type="text" value={newCourseName} onChange={e => setNewCourseName(e.target.value)} placeholder="Ej: 3ro 2da" className="w-full p-5 bg-slate-50 rounded-2xl font-bold border outline-none text-sm" />
-                                <div className="space-y-3">
-                                    <div className="flex overflow-x-auto gap-2 py-1 scrollbar-hide no-wrap">
-                                        {DAYS_MAP.slice(1,6).map(day => (
-                                            <button key={day.id} onClick={() => {
-                                                const dKey = String(day.id);
-                                                setDynamicSchedule(prev => {
-                                                    const n = { ...prev };
-                                                    if (n[dKey]) delete n[dKey]; else n[dKey] = "08:00";
-                                                    return n;
-                                                });
-                                            }} className={`flex-shrink-0 w-12 h-12 rounded-xl text-[10px] font-black transition-all border flex items-center justify-center ${dynamicSchedule[String(day.id)] ? 'bg-indigo-600 border-indigo-600 text-white shadow-md' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>{day.label}</button>
+                        {screen === 'manage' && (
+                            <div className="p-6 space-y-6 animate-in text-left">
+                                <div className="bg-white p-6 rounded-[40px] shadow-xl border border-slate-100 space-y-4">
+                                    <p className="text-[10px] font-black text-indigo-600 uppercase italic ml-2">Nuevo Curso</p>
+                                    <input value={fCourse.name} onChange={e=>setFCourse({...fCourse, name:e.target.value})} placeholder="Nombre: Ej 4to 1ra Ciencias" className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-none outline-none text-sm shadow-inner" />
+                                    
+                                    <div className="space-y-2">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase ml-2 italic">Días y Horarios</p>
+                                        <div className="flex justify-between">
+                                            {DAYS_ES.slice(1,7).map(d => (
+                                                <button key={d.id} onClick={()=>{
+                                                    const n = {...fCourse.schedule}; if(n[d.id]) delete n[d.id]; else n[d.id]="08:00";
+                                                    setFCourse({...fCourse, schedule:n});
+                                                }} className={`w-11 h-11 rounded-xl text-[10px] font-black border transition-all ${fCourse.schedule[d.id] ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg' : 'bg-white text-slate-400'}`}>
+                                                    {d.label.charAt(0)}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        {Object.entries(fCourse.schedule).map(([d, t]) => (
+                                            <div key={d} className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border">
+                                                <span className="text-[9px] font-black text-slate-500 uppercase">{DAYS_ES.find(x=>x.id==d).label}</span>
+                                                <input type="time" value={t} onChange={e=>setFCourse({...fCourse, schedule:{...fCourse.schedule, [d]:e.target.value}})} className="bg-transparent font-bold text-indigo-600 text-xs outline-none" />
+                                            </div>
                                         ))}
                                     </div>
+
+                                    <textarea value={fCourse.students} onChange={e=>setFCourse({...fCourse, students:e.target.value})} placeholder="Lista de alumnos (uno por línea)..." className="w-full p-4 bg-slate-50 rounded-2xl h-40 outline-none text-xs font-medium shadow-inner"></textarea>
+                                    <button onClick={saveCourse} className="w-full bg-indigo-700 text-white p-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl active:scale-95 transition-all">Guardar Curso</button>
                                 </div>
-                                <textarea value={newCourseStudents} onChange={e => setNewCourseStudents(e.target.value)} placeholder="Escribe los alumnos (uno por línea)..." className="w-full p-5 bg-slate-50 rounded-2xl h-32 text-xs font-medium outline-none border focus:border-indigo-600"></textarea>
-                                <button onClick={async () => {
-                                    if (!newCourseName || !newCourseStudents) return addNotification("Faltan datos", "error");
-                                    const list = newCourseStudents.split('\n').map(l => l.trim().toUpperCase()).filter(s => s !== "");
-                                    const sched = Object.keys(dynamicSchedule).map(k => ({ day: parseInt(k), time: dynamicSchedule[k] }));
-                                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('courses').add({ name: newCourseName, students: list, schedule: sched, createdAt: new Date().toISOString() });
-                                    goToHome(); addNotification("Curso guardado", "success");
-                                }} className="w-full bg-indigo-600 text-white p-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg">Guardar Curso</button>
-                            </div>
-                            {courses.map(c => (
-                                <div key={c.id} className="bg-white p-4 rounded-3xl border flex justify-between items-center shadow-sm">
-                                    <p className="font-black text-slate-700 text-[10px] uppercase">{c.name}</p>
-                                    <button onClick={() => db.collection('artifacts').doc(appId).collection('public').doc('data').collection('courses').doc(c.id).delete()} className="text-red-400 p-2"><i data-lucide="trash-2"></i></button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {currentScreen === 'sel-asist' && (
-                        <div className="p-6 space-y-3">
-                            {courses.map(c => (
-                                <button key={c.id} onClick={() => { setSelectedCourse(c); setCurrentScreen('asist'); }} className="w-full bg-white p-6 rounded-[32px] flex justify-between items-center shadow-sm border active:scale-95 transition-all">
-                                    <span className="font-black text-slate-800 uppercase text-xs block">{c.name}</span>
-                                    <i data-lucide="arrow-right" className="text-indigo-600"></i>
-                                </button>
-                            ))}
-                        </div>
-                    )}
-
-                    {currentScreen === 'asist' && (
-                        <div className="p-6 flex flex-col space-y-6 text-center">
-                            <div className="bg-slate-900 aspect-square rounded-[40px] flex items-center justify-center shadow-2xl relative" onClick={() => handleScan(selectedCourse.students[Math.floor(Math.random() * selectedCourse.students.length)])}>
-                                <i data-lucide="camera" size={64} className="text-indigo-400 opacity-40 animate-pulse"></i>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="bg-white p-6 rounded-[32px] border"><p className="text-4xl font-black text-green-600">{sessionAttendance.length}</p><p className="text-[8px] font-black uppercase text-slate-400 mt-2">Presentes</p></div>
-                                <div className="bg-white p-6 rounded-[32px] border"><p className="text-4xl font-black text-red-600">{selectedCourse.students.length - sessionAttendance.length}</p><p className="text-[8px] font-black uppercase text-slate-400 mt-2">Ausentes</p></div>
-                            </div>
-                            <button onClick={finalizeAttendance} className="w-full bg-indigo-700 text-white p-6 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl">Guardar Jornada</button>
-                        </div>
-                    )}
-
-                    {currentScreen === 'sel-tp' && (
-                        <div className="p-6 space-y-3">
-                            {courses.map(c => (
-                                <button key={c.id} onClick={() => { setSelectedCourse(c); setCurrentScreen('tp-list'); }} className="w-full bg-white p-6 rounded-[32px] flex justify-between items-center shadow-sm border active:scale-95 transition-all">
-                                    <span className="font-black text-slate-800 uppercase text-xs">{c.name}</span><i data-lucide="clipboard-list" className="text-indigo-600"></i>
-                                </button>
-                            ))}
-                        </div>
-                    )}
-
-                    {currentScreen === 'tp-list' && (
-                        <div className="p-6 space-y-6 pb-20">
-                            <div className="bg-white p-6 rounded-[32px] border shadow-lg space-y-4">
-                                <div className="flex space-x-2">
-                                    <input type="text" value={newTPName} onChange={e => setNewTPName(e.target.value)} placeholder="Nombre del TP..." className="flex-1 p-4 bg-slate-50 rounded-2xl font-bold border outline-none text-sm" />
-                                    <button onClick={async () => {
-                                        if (!newTPName) return;
-                                        await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('assignments').add({ name: newTPName, courseId: selectedCourse.id, createdAt: new Date().toISOString() });
-                                        setNewTPName(''); addNotification("TP Creado", "success");
-                                    }} className="p-4 bg-indigo-600 text-white rounded-2xl"><i data-lucide="plus"></i></button>
-                                </div>
-                            </div>
-                            {assignments.filter(a => a.courseId === selectedCourse.id).map(tp => (
-                                <div key={tp.id} onClick={() => { setSelectedTP(tp); setCurrentScreen('tp-check'); }} className="bg-white p-5 rounded-[32px] border flex justify-between items-center cursor-pointer shadow-sm">
-                                    <p className="font-black text-slate-800 text-[10px] uppercase">{tp.name}</p>
-                                    <button onClick={(e) => { e.stopPropagation(); db.collection('artifacts').doc(appId).collection('public').doc('data').collection('assignments').doc(tp.id).delete(); }} className="text-slate-200 hover:text-red-500"><i data-lucide="trash-2"></i></button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {currentScreen === 'tp-check' && (
-                        <div className="p-6 space-y-4 pb-20">
-                            <div className="bg-indigo-50 p-5 rounded-3xl border border-indigo-100 flex justify-between items-center">
-                                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">TP: {selectedTP.name}</p>
-                                <span className="font-black text-indigo-700 text-lg">{deliveries.filter(d => d.assignmentId === selectedTP.id && d.status === 'Entregado').length} / {selectedCourse.students.length}</span>
-                            </div>
-                            <div className="space-y-2 max-h-[500px] overflow-y-auto scrollbar-hide px-1">
-                                {selectedCourse.students.map(s => {
-                                    const del = deliveries.find(d => d.assignmentId === selectedTP.id && d.studentName === s);
-                                    const status = del ? del.status : 'Pendiente';
-                                    return (
-                                        <div key={s} className="bg-white p-4 rounded-2xl flex justify-between items-center border shadow-sm">
-                                            <span className="font-black text-slate-700 text-[10px] uppercase truncate flex-1 leading-none">{s}</span>
-                                            <button onClick={async () => {
-                                                const deliveryId = `${selectedTP.id}_${s.replace(/\s+/g, '_')}`;
-                                                await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('deliveries').doc(deliveryId).set({ assignmentId: selectedTP.id, studentName: s, status: status === 'Entregado' ? 'Pendiente' : 'Entregado', updatedAt: new Date().toISOString() });
-                                            }} className={`px-4 py-2 rounded-xl font-black text-[9px] uppercase shadow-sm transition-all ${status === 'Entregado' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-red-50 text-red-500 border border-red-100'}`}>{status}</button>
+                                
+                                <div className="space-y-3 pb-20">
+                                    <button onClick={clearAllAttendance} className="w-full bg-red-50 text-red-600 p-4 rounded-2xl font-black uppercase text-[10px] tracking-widest border border-red-100 flex items-center justify-center gap-2 active:bg-red-100 transition-all">
+                                        <i data-lucide="trash-2" size={14}></i> Borrar Historial de Asistencias
+                                    </button>
+                                    <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest px-2 italic">Gestionar Cursos</p>
+                                    {courses.map(c => (
+                                        <div key={c.id} className="bg-white p-4 rounded-2xl border flex justify-between items-center shadow-sm">
+                                            <span className="font-black text-slate-700 uppercase text-[10px]">{c.name}</span>
+                                            <button onClick={()=>deleteCourse(c.id)} className="text-red-400 p-2 active:scale-90 transition-all"><i data-lucide="trash-2" size={16}></i></button>
                                         </div>
-                                    );
-                                })}
+                                    ))}
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        )}
+
+                        {screen === 'sel-asist' && (
+                            <div className="p-6 space-y-3 animate-in text-left">
+                                {courses.map(c => (
+                                    <button key={c.id} onClick={()=>{setSelectedCourse(c); setScreen('asist-run');}} className="w-full bg-white p-6 rounded-[32px] border flex justify-between items-center shadow-sm active:scale-95 transition-all text-left">
+                                        <span className="font-black uppercase text-xs text-slate-700 text-left">{c.name}</span>
+                                        <i data-lucide="chevron-right" className="text-indigo-600"></i>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {screen === 'asist-run' && (
+                            <div className="p-6 space-y-6 text-center animate-in">
+                                <div className="bg-slate-900 aspect-square rounded-[48px] shadow-2xl relative overflow-hidden">
+                                    <div id="reader" className="w-full h-full"></div>
+                                    <div className="absolute inset-0 border-2 border-indigo-500/30 rounded-[48px] pointer-events-none"></div>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-green-50 p-6 rounded-3xl border border-green-100 shadow-sm text-center">
+                                        <p className="text-5xl font-black text-green-600 leading-none">{sessionAttendance.length}</p>
+                                        <p className="text-[10px] font-black uppercase text-green-400 mt-2 text-center">Presentes</p>
+                                    </div>
+                                    <div className="bg-red-50 p-6 rounded-3xl border border-red-100 shadow-sm text-center">
+                                        <p className="text-5xl font-black text-red-600 leading-none">{selectedCourse.students.length - sessionAttendance.length}</p>
+                                        <p className="text-[10px] font-black uppercase text-red-400 mt-2 text-center">Ausentes</p>
+                                    </div>
+                                </div>
+
+                                <div className="max-h-40 overflow-y-auto space-y-2 p-2 scrollbar-hide bg-slate-50 rounded-3xl border border-slate-100 shadow-inner">
+                                    {sessionAttendance.length === 0 ? (
+                                        <p className="text-[10px] font-black text-slate-300 uppercase italic py-4">Esperando escaneo...</p>
+                                    ) : (
+                                        sessionAttendance.map((s, idx) => (
+                                            <div key={idx} className="bg-white p-3 rounded-2xl flex justify-between items-center border border-slate-100 animate-in mx-2 shadow-sm">
+                                                <span className="text-[10px] font-black text-slate-600 uppercase italic truncate max-w-[70%]">{s.name}</span>
+                                                <span className="text-[9px] font-bold text-green-500 uppercase tracking-widest italic">{s.time} ✓</span>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+
+                                <button onClick={finalizeAsistencia} disabled={isSaving} className={`w-full ${isSaving ? 'bg-slate-400' : 'bg-indigo-700'} text-white p-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3`}>
+                                    {isSaving ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span> : null}
+                                    {isSaving ? 'Guardando...' : 'Finalizar Jornada'}
+                                </button>
+                            </div>
+                        )}
+
+                        {screen === 'sel-tp' && (
+                            <div className="p-6 space-y-3 animate-in text-left">
+                                {courses.map(c => (
+                                    <button key={c.id} onClick={()=>{setSelectedCourse(c); setScreen('tp-list');}} className="w-full bg-white p-6 rounded-[32px] border flex justify-between items-center shadow-sm text-left">
+                                        <span className="font-black uppercase text-xs text-slate-700 text-left">{c.name}</span>
+                                        <i data-lucide="clipboard-list" className="text-indigo-600"></i>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {screen === 'tp-list' && (
+                            <div className="p-6 space-y-6 animate-in text-left">
+                                <div className="bg-white p-6 rounded-[32px] border shadow-lg space-y-4">
+                                    <p className="text-[10px] font-black text-indigo-600 uppercase italic ml-2">Nuevo TP</p>
+                                    <div className="flex gap-2">
+                                        <input value={fTP.name} onChange={e=>setFTP({name:e.target.value})} placeholder="Nombre del TP..." className="flex-1 p-4 bg-slate-50 rounded-2xl outline-none font-bold text-sm shadow-inner" />
+                                        <button onClick={async ()=>{
+                                            if(!fTP.name) return;
+                                            const path = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('assignments');
+                                            await path.add({id:Date.now(), name:fTP.name, courseId:selectedCourse.id});
+                                            setFTP({name:''});
+                                            showToast("TP creado");
+                                        }} className="p-4 bg-indigo-600 text-white rounded-2xl active:scale-90 transition-all flex items-center justify-center shadow-md"><i data-lucide="plus"></i></button>
+                                    </div>
+                                </div>
+                                <div className="space-y-3">
+                                    {assignments.filter(a => a.courseId === selectedCourse.id).map(a => (
+                                        <div key={a.id} onClick={()=>{setSelectedTP(a); setScreen('tp-check');}} className="bg-white p-5 rounded-[32px] border flex justify-between items-center cursor-pointer shadow-sm active:scale-95 transition-all">
+                                            <div className="text-left">
+                                                <span className="font-black text-slate-700 uppercase text-xs">{a.name}</span>
+                                                <p className="text-[8px] font-black text-indigo-400 uppercase mt-1 italic">Ver entregas</p>
+                                            </div>
+                                            <button onClick={(e)=>{
+                                                e.stopPropagation();
+                                                if(confirm("¿Eliminar este TP?")) db.collection('artifacts').doc(appId).collection('public').doc('data').collection('assignments').doc(a.id).delete();
+                                            }} className="p-2 text-slate-200 active:text-red-400 transition-colors">
+                                                <i data-lucide="trash-2" size={16}></i>
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {screen === 'sel-qr' && (
+                            <div className="p-6 space-y-3 animate-in text-left">
+                                {courses.map(c => (
+                                    <button key={c.id} onClick={()=>{setSelectedCourse(c); setScreen('qr-gen');}} className="w-full bg-white p-6 rounded-[32px] border flex justify-between items-center shadow-sm active:scale-95 transition-all text-left">
+                                        <span className="font-black uppercase text-xs text-slate-700 text-left">{c.name}</span>
+                                        <i data-lucide="printer" className="text-indigo-600"></i>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {screen === 'qr-gen' && selectedCourse && (
+                            <div className="p-6 space-y-6 animate-in text-left">
+                                <div className="no-print bg-indigo-50 p-6 rounded-[40px] border border-indigo-100 mb-6">
+                                    <p className="text-[10px] font-black text-indigo-400 uppercase italic mb-2">Instrucciones</p>
+                                    <p className="text-xs text-indigo-900 font-medium">Puedes capturar la pantalla o imprimir esta lista para repartir los códigos QR a tus alumnos.</p>
+                                    <button onClick={()=>window.print()} className="mt-4 w-full bg-indigo-600 text-white p-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg flex items-center justify-center gap-2">
+                                        <i data-lucide="printer" size={16}></i> Imprimir Credenciales
+                                    </button>
+                                </div>
+
+                                <div className="print-grid grid grid-cols-1 gap-4">
+                                    {selectedCourse.students.map((student, i) => (
+                                        <div key={i} className="bg-white p-6 rounded-[40px] border border-slate-200 flex flex-col items-center text-center shadow-sm break-inside-avoid">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 italic leading-tight">{student}</p>
+                                            <div className="bg-slate-50 p-4 rounded-3xl mb-4">
+                                                <img 
+                                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(student)}`} 
+                                                    alt={`QR de ${student}`} 
+                                                    className="w-32 h-32"
+                                                />
+                                            </div>
+                                            <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest italic">{selectedCourse.name}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="h-20"></div>
+                            </div>
+                        )}
+
+                        {screen === 'sel-report' && (
+                            <div className="p-6 space-y-3 animate-in text-left">
+                                {courses.map(c => (
+                                    <button key={c.id} onClick={()=>{setSelectedCourse(c); setScreen('report-view');}} className="w-full bg-white p-6 rounded-[32px] border flex justify-between items-center shadow-sm text-left">
+                                        <span className="font-black uppercase text-xs text-slate-700 text-left">{c.name}</span>
+                                        <i data-lucide="bar-chart-3" className="text-indigo-600"></i>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {screen === 'report-view' && selectedCourse && (
+                            <div className="p-6 space-y-4 animate-in pb-24">
+                                <div className="flex bg-slate-200 p-1.5 rounded-[22px] shadow-inner mb-4">
+                                    {['general', 'mensual', 'anual'].map(t => (
+                                        <button key={t} onClick={() => setReportTab(t)} className={`flex-1 py-3 text-[10px] font-black uppercase rounded-[18px] transition-all flex items-center justify-center ${reportTab === t ? 'bg-white text-indigo-600 shadow-xl' : 'text-slate-400'}`}>
+                                            {t === 'general' ? 'Gral' : t === 'mensual' ? 'Mes' : 'Año'}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {reportTab === 'general' ? (
+                                    <div className="bg-white rounded-[40px] border border-slate-100 overflow-hidden shadow-xl animate-in text-center">
+                                        <table className="w-full text-center text-xs border-collapse">
+                                            <thead className="bg-slate-50 text-[8px] font-black uppercase text-slate-400 border-b border-slate-100">
+                                                <tr><th className="p-4 text-left">Alumno</th><th>P</th><th>T</th><th>A</th><th className="p-4 text-right">%</th></tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50 text-center">
+                                                {reportStats.map((s, i) => (
+                                                    <tr key={i} className="active:bg-slate-50">
+                                                        <td className="p-4 text-left font-black text-slate-700 text-[9px] uppercase truncate max-w-[140px] italic">{s.name}</td>
+                                                        <td className="text-green-600 font-bold">{s.p}</td>
+                                                        <td className="text-amber-500 font-bold">{s.t}</td>
+                                                        <td className="text-red-500 font-bold">{s.a}</td>
+                                                        <td className={`p-4 text-right font-black ${s.perc > 80 ? 'text-green-600' : 'text-red-500'}`}>{s.perc}%</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4 text-left">
+                                        {reportStats.map((s, i) => (
+                                            <div key={i} className="bg-white p-6 rounded-[40px] shadow-sm border border-slate-100 space-y-4 animate-in">
+                                                <div className="flex justify-between items-start">
+                                                    <div className="max-w-[70%] text-left">
+                                                        <p className="font-black text-slate-800 text-[11px] uppercase leading-tight italic">{s.name}</p>
+                                                        <p className="text-[8px] font-black text-slate-400 uppercase mt-1 tracking-widest italic">{reportTab === 'mensual' ? 'Resumen Mensual' : 'Resumen Anual'}</p>
+                                                    </div>
+                                                    <div className={`px-4 py-2 rounded-2xl font-black text-xs ${s.perc > 80 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>{s.perc}%</div>
+                                                </div>
+                                                <div className="space-y-2 text-center">
+                                                    {(reportTab === 'mensual' ? Object.entries(s.monthly) : Object.entries(s.yearly)).sort().reverse().map(([k, d]) => (
+                                                        <div key={k} className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic">{reportTab === 'mensual' ? MONTHS_ES[k] : k}</span>
+                                                            <div className="flex space-x-3 text-center">
+                                                                <div><p className="text-[11px] font-black text-green-600 leading-none">{d.p}</p><p className="text-[6px] font-black text-green-400 uppercase text-center">P</p></div>
+                                                                <div><p className="text-[11px] font-black text-amber-600 leading-none">{d.t}</p><p className="text-[6px] font-black text-amber-500 uppercase text-center">T</p></div>
+                                                                <div><p className="text-[11px] font-black text-red-600 leading-none">{d.a}</p><p className="text-[6px] font-black text-red-400 uppercase text-center">A</p></div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                    {(reportTab === 'mensual' && Object.keys(s.monthly).length === 0) || (reportTab === 'anual' && Object.keys(s.yearly).length === 0) ? (
+                                                        <p className="text-center text-[9px] text-slate-300 font-black uppercase italic py-2">Sin datos cargados</p>
+                                                    ) : null}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </div>
             );
         }
 
-        const HomeCard = ({ icon, label, onClick, color = "text-slate-600" }) => {
-            useEffect(() => { lucide.createIcons(); }, []);
+        const MenuBtn = ({ icon, label, onClick, color = "text-slate-600" }) => {
+            useEffect(() => { 
+                if (typeof lucide !== 'undefined') lucide.createIcons(); 
+            }, []);
             return (
-                <button onClick={onClick} className="flex flex-col items-center justify-center p-6 bg-white rounded-[32px] border border-slate-100 shadow-sm active:scale-95 transition-all cursor-pointer">
-                    <div className={`${color} mb-3`}><i data-lucide={icon} size={32}></i></div>
-                    <span className="text-[9px] font-black text-slate-700 uppercase tracking-widest text-center leading-none mt-1 italic">{label}</span>
+                <button onClick={onClick} className="flex flex-col items-center justify-center p-7 bg-white rounded-[40px] shadow-lg border border-slate-50 active:scale-90 transition-all cursor-pointer relative overflow-hidden group">
+                    <div className="absolute inset-0 bg-indigo-50/0 group-active:bg-indigo-50/100 transition-all"></div>
+                    <div className={`${color} mb-3 group-hover:scale-110 transition-transform relative z-10 flex items-center justify-center`}>
+                        <i data-lucide={icon} size={30}></i>
+                    </div>
+                    <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest text-center leading-none mt-1 italic relative z-10">{label}</span>
                 </button>
             );
         };
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
-        setTimeout(() => lucide.createIcons(), 500);
+        setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 500);
     </script>
 </body>
 </html>
