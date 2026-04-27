@@ -48,12 +48,12 @@
         const { useState, useEffect, useMemo, useRef } = React;
 
         const firebaseConfig = {
-            apiKey: "AIzaSyD1X8hYd2_chuDtkeTuY5z3bRP9wkFonOM",
-            authDomain: "assistant-day.firebaseapp.com",
-            projectId: "assistant-day",
-            storageBucket: "assistant-day.firebasestorage.app",
-            messagingSenderId: "463561387355",
-            appId: "1:463561387355:web:ad4e586279a5ea24cc3e7e"
+            apiKey: "AIzaSyCNPHo0Vu7yLAdY3r4YoosWxAoHsSghkuo",
+            authDomain: "assistant-day-pro.firebaseapp.com",
+            projectId: "assistant-day-pro",
+            storageBucket: "assistant-day-pro.firebasestorage.app",
+            messagingSenderId: "717751256878",
+            appId: "1:717751256878:web:680a9bc9464b9330301cbf"
         };
 
         const appId = 'assistant-day-pro-v2';
@@ -372,6 +372,16 @@
                 }
             };
 
+            const deleteAllCourses = async () => {
+                if(!confirm("¿Borrar TODOS los cursos?\nEsta acción no se puede deshacer.")) return;
+                const path = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('courses');
+                const snap = await path.get();
+                const batch = db.batch();
+                snap.docs.forEach(doc => batch.delete(doc.ref));
+                await batch.commit();
+                showToast("Todos los cursos fueron eliminados", "success");
+            };
+
             const deleteCourse = async (id) => {
                 if(!confirm("¿Estás seguro de eliminar este curso? Se perderán los datos vinculados.")) return;
                 await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('courses').doc(id).delete();
@@ -512,6 +522,9 @@
                                 <div className="space-y-3 pb-20">
                                     <button onClick={clearAllAttendance} className="w-full bg-red-50 text-red-600 p-4 rounded-2xl font-black uppercase text-[10px] tracking-widest border border-red-100 flex items-center justify-center gap-2 active:bg-red-100 transition-all">
                                         <i data-lucide="trash-2" size={14}></i> Borrar Historial de Asistencias
+                                    </button>
+                                    <button onClick={deleteAllCourses} className="w-full bg-red-100 text-red-700 p-4 rounded-2xl font-black uppercase text-[10px] tracking-widest border border-red-200 flex items-center justify-center gap-2 active:bg-red-200 transition-all">
+                                        <i data-lucide="trash-2" size={14}></i> Borrar Todos los Cursos
                                     </button>
                                     <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest px-2 italic">Gestionar Cursos</p>
                                     {courses.map(c => (
