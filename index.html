@@ -216,7 +216,10 @@
 
             const handleBack = () => {
                 if (qrScannerRef.current) {
-                    qrScannerRef.current.stop().catch(console.error);
+                    try {
+                        qrScannerRef.current.stop().catch(e => console.log("Scanner already stopped"));
+                        qrScannerRef.current = null;
+                    } catch (e) {}
                 }
                 setScreen('home');
                 setSelectedTP(null);
@@ -369,6 +372,7 @@
                 const today = new Date().toISOString().split('T')[0];
                 
                 try {
+                    // 1. Obtener y preparar borrado de registros de hoy
                     const existingDocs = await path.get();
                     const toDelete = existingDocs.docs.filter(d => {
                         const data = d.data();
@@ -378,6 +382,7 @@
                     const batch = db.batch();
                     toDelete.forEach(doc => batch.delete(doc.ref));
 
+                    // 2. Preparar registros finales
                     const ausentes = selectedCourse.students
                         .filter(n => !sessionAttendance.find(s => s.name === n))
                         .map(n => ({ 
@@ -387,35 +392,36 @@
                     
                     const allRecords = [...sessionAttendance, ...ausentes];
                     
-                    // Guardar en Firebase (Nube)
+                    // 3. Guardar en Firebase (Nube)
                     allRecords.forEach(rec => {
                         const docRef = path.doc();
                         batch.set(docRef, rec);
                     });
                     await batch.commit();
 
-                    // Sincronizar con Google Sheets (UN SOLO ENVÍO MASIVO)
-                    if (GS_API_URL && !GS_API_URL.includes("URL_AQUI")) {
-                        showToast("Sincronizando con Sheets...", "info");
-                        
-                        try {
-                            await fetch(GS_API_URL, { 
-                                method: 'POST', 
-                                mode: 'no-cors',
-                                headers: { 'Content-Type': 'text/plain' },
-                                body: JSON.stringify(allRecords) 
-                            });
-                        } catch (e) {
-                            console.error("Error de red enviando a Sheets:", e);
-                            showToast("Error de red en Sheets", "error");
-                        }
+                    // 4. Sincronizar con Google Sheets (MASIVO - FIRE AND FORGET)
+                    // No esperamos a que responda para que la app no se congele
+                    if (GS_API_URL && GS_API_URL.startsWith("http")) {
+                        showToast("Sincronizando...", "info");
+                        fetch(GS_API_URL, { 
+                            method: 'POST', 
+                            mode: 'no-cors',
+                            cache: 'no-cache',
+                            headers: { 'Content-Type': 'text/plain' },
+                            body: JSON.stringify(allRecords) 
+                        }).catch(e => console.log("Error silencioso en Sheets:", e));
                     }
 
-                    showToast("Jornada Guardada");
-                    handleBack();
+                    showToast("✓ Jornada Guardada");
+                    
+                    // Regresar a Home inmediatamente
+                    setTimeout(() => {
+                        handleBack();
+                    }, 500);
+                    
                 } catch (e) {
+                    console.error("Error finalizando:", e);
                     showToast("Error al guardar", "error");
-                } finally {
                     setIsSaving(false);
                 }
             };
