@@ -29,7 +29,7 @@
         body { font-family: 'Urbanist', sans-serif; background-color: var(--bg); margin: 0; overflow-x: hidden; -webkit-tap-highlight-color: transparent; }
         .app-container { max-width: 480px; margin: 0 auto; background: white; min-height: 100vh; position: relative; display: flex; flex-direction: column; box-shadow: 0 0 40px rgba(0,0,0,0.05); }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .animate-in { animation: fadeIn 0.3s ease-out; }
+        .animate-in { animation: fadeIn 0.3s xase-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(30%) sepia(100%) saturate(500%) hue-rotate(200deg); }
         
@@ -428,7 +428,7 @@
             };
 
             if (authError) return <div className="flex h-screen items-center justify-center p-10 text-center font-black text-red-500 uppercase italic tracking-widest">{authError}</div>;
-            if (loading) return <div className="flex h-screen items-center justify-center bg-indigo-700 text-white font-black uppercase text-xs tracking-widest animate-pulse italic">Cargando Tilcara...</div>;
+            if (loading) return <div className="flex h-screen items-center justify-center bg-indigo-700 text-white font-black uppercase text-xs tracking-widest animate-pulse italic">Cargando Assistant Day...</div>;
 
             return (
                 <div className="app-container">
@@ -593,11 +593,11 @@
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="bg-green-50 p-6 rounded-3xl border border-green-100 shadow-sm text-center">
                                         <p className="text-5xl font-black text-green-600 leading-none">{sessionAttendance.length}</p>
-                                        <p className="text-[10px] font-black uppercase text-green-400 mt-2">Presentes</p>
+                                        <p className="text-[10px] font-black uppercase text-green-400 mt-2 text-center">Presentes</p>
                                     </div>
                                     <div className="bg-red-50 p-6 rounded-3xl border border-red-100 shadow-sm text-center">
                                         <p className="text-5xl font-black text-red-600 leading-none">{selectedCourse.students.length - sessionAttendance.length}</p>
-                                        <p className="text-[10px] font-black uppercase text-red-400 mt-2">Ausentes</p>
+                                        <p className="text-[10px] font-black uppercase text-red-400 mt-2 text-center">Ausentes</p>
                                     </div>
                                 </div>
                                 <div className="max-h-40 overflow-y-auto space-y-2 p-2 scrollbar-hide bg-slate-50 rounded-3xl border border-slate-100">
@@ -712,7 +712,7 @@
                         {screen === 'sel-report' && (
                             <div className="p-6 space-y-3 animate-in text-left">
                                 {courses.map(c => (
-                                    <button key={c.id} onClick={()=>{setSelectedCourse(c); setScreen('report-view');}} className="w-full bg-white p-6 rounded-[32px] border flex justify-between items-center shadow-sm text-left">
+                                    <button key={c.id} onClick={()=>{setSelectedCourse(c); setScreen('report-view');}} className="w-full bg-white p-6 rounded-[32px] border flex justify-between items-center shadow-sm text-left active:scale-95 transition-all">
                                         <span className="font-black uppercase text-xs text-slate-700">{c.name}</span>
                                         <i data-lucide="bar-chart-3" className="text-indigo-600"></i>
                                     </button>
@@ -764,9 +764,9 @@
                                                         <div key={k} className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-100">
                                                             <span className="text-[9px] font-black text-slate-400 uppercase italic">{reportTab === 'mensual' ? MONTHS_ES[k] : k}</span>
                                                             <div className="flex space-x-3 text-center">
-                                                                <div><p className="text-[11px] font-black text-green-600">{d.p}</p><p className="text-[6px] font-black text-green-400 uppercase">P</p></div>
-                                                                <div><p className="text-[11px] font-black text-amber-600">{d.t}</p><p className="text-[6px] font-black text-amber-500 uppercase">T</p></div>
-                                                                <div><p className="text-[11px] font-black text-red-600">{d.a}</p><p className="text-[6px] font-black text-red-400 uppercase">A</p></div>
+                                                                <div><p className="text-[11px] font-black text-green-600">{d.p}</p><p className="text-[6px] font-black text-green-400 uppercase text-center">P</p></div>
+                                                                <div><p className="text-[11px] font-black text-amber-600">{d.t}</p><p className="text-[6px] font-black text-amber-500 uppercase text-center">T</p></div>
+                                                                <div><p className="text-[11px] font-black text-red-600">{d.a}</p><p className="text-[6px] font-black text-red-400 uppercase text-center">A</p></div>
                                                             </div>
                                                         </div>
                                                     ))}
