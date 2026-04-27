@@ -32,18 +32,13 @@
         .animate-in { animation: fadeIn 0.3s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         
-        #reader { border: none !important; border-radius: 48px; overflow: hidden; background: #0f172a; position: relative; }
+        #reader { border: none !important; border-radius: 48px; overflow: hidden; background: #0f172a; }
         #reader video { object-fit: cover !important; width: 100% !important; height: 100% !important; }
 
         @media print {
             .no-print { display: none !important; }
             .app-container { max-width: 100% !important; box-shadow: none !important; }
             .print-grid { display: grid !important; grid-template-cols: repeat(3, 1fr) !important; gap: 10px !important; }
-        }
-
-        input[type="date"] { position: relative; }
-        input[type="date"]::-webkit-calendar-picker-indicator {
-            background: transparent; bottom: 0; color: transparent; cursor: pointer; height: auto; left: 0; position: absolute; right: 0; top: 0; width: auto;
         }
     </style>
 </head>
@@ -53,7 +48,7 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+        const firebaseConfig = {
             apiKey: "AIzaSyCNPHo0Vu7yLAdY3r4YoosWxAoHsSghkuo",
             authDomain: "assistant-day-pro.firebaseapp.com",
             projectId: "assistant-day-pro",
@@ -62,14 +57,21 @@
             appId: "1:717751256878:web:680a9bc9464b9330301cbf"
         };
 
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'assistant-day-pro-v2';
+        const appId = 'assistant-day-pro-v2';
         const GS_API_URL = "https://script.google.com/macros/s/AKfycbyJZab9PoZGaDBQn7jK6SO_73sZhkbz_vBjvHGwYvrJG0RW88TuAW9xhG1XLB-vq8xs/exec";
 
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const auth = firebase.auth();
         const db = firebase.firestore();
 
-        db.enablePersistence().catch(() => console.log("Persistencia no disponible"));
+        // ACTIVAR PERSISTENCIA OFFLINE EN FIREBASE
+        db.enablePersistence().catch((err) => {
+            if (err.code == 'failed-precondition') {
+                console.log("Persistencia falló: múltiples pestañas abiertas");
+            } else if (err.code == 'unimplemented') {
+                console.log("El navegador no soporta persistencia");
+            }
+        });
 
         const DAYS_ES = [
             { id: 0, label: 'Domingo' }, { id: 1, label: 'Lunes' }, { id: 2, label: 'Martes' },
@@ -81,7 +83,9 @@
         const QRCodeLocal = ({ value, size = 150 }) => {
             const canvasRef = useRef(null);
             useEffect(() => {
-                if (window.QRious) new QRious({ element: canvasRef.current, value: value, size: size, level: 'M' });
+                if (window.QRious) {
+                    new QRious({ element: canvasRef.current, value: value, size: size, level: 'M' });
+                }
             }, [value, size]);
             return <canvas ref={canvasRef} className="rounded-2xl shadow-sm bg-white p-2" />;
         };
@@ -101,35 +105,30 @@
             const [toast, setToast] = useState(null);
             const [isSaving, setIsSaving] = useState(false);
             const [isOffline, setIsOffline] = useState(!navigator.onLine);
-            const [cameraActive, setCameraActive] = useState(false);
             
             const qrScannerRef = useRef(null);
             const lastProcessedRef = useRef(null); 
             const processedNamesInSession = useRef(new Set());
 
             const [fCourse, setFCourse] = useState({ name: '', school: '', students: '', schedule: {} });
-            const [fTP, setFTP] = useState({ name: '', startDate: '', endDate: '' });
+            const [editingCourseId, setEditingCourseId] = useState(null);
+            const [fTP, setFTP] = useState({ name: '' });
 
             useEffect(() => {
                 const handleOnline = () => { setIsOffline(false); showToast("Conexión restaurada", "success"); };
-                const handleOffline = () => { setIsOffline(true); showToast("Modo Offline", "info"); };
+                const handleOffline = () => { setIsOffline(true); showToast("Modo Offline activado", "info"); };
                 window.addEventListener('online', handleOnline);
                 window.addEventListener('offline', handleOffline);
-                return () => { window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline); };
+                return () => {
+                    window.removeEventListener('online', handleOnline);
+                    window.removeEventListener('offline', handleOffline);
+                };
             }, []);
 
+            useEffect(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, [screen, courses]);
+
             useEffect(() => {
-                const initAuth = async () => {
-                    try {
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await auth.signInWithCustomToken(__initial_auth_token);
-                        } else {
-                            await auth.signInAnonymously();
-                        }
-                    } catch (e) { console.error(e); }
-                    setLoading(false);
-                };
-                initAuth();
+                auth.signInAnonymously().finally(() => setLoading(false));
                 const unsubscribe = auth.onAuthStateChanged(u => setUser(u));
                 return () => unsubscribe();
             }, []);
@@ -149,16 +148,25 @@
                 setTimeout(() => setToast(null), 3000);
             };
 
+            // MEJORA DE VOZ PARA SAFARI/iOS
             const speak = (text) => {
                 if ('speechSynthesis' in window) {
                     window.speechSynthesis.cancel();
+                    
                     const utterance = new SpeechSynthesisUtterance(text);
                     utterance.lang = 'es-ES';
-                    if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+                    utterance.rate = 1.0;
+                    utterance.pitch = 1.0;
+
+                    if (window.speechSynthesis.paused) {
+                        window.speechSynthesis.resume();
+                    }
+                    
                     window.speechSynthesis.speak(utterance);
                 }
             };
 
+            // FUNCIÓN PARA DESBLOQUEAR EL AUDIO (Safari requiere un clic previo)
             const unlockVoice = () => {
                 if ('speechSynthesis' in window) {
                     const silent = new SpeechSynthesisUtterance("");
@@ -167,28 +175,33 @@
                 }
             };
 
-            const todaySummary = useMemo(() => {
+            const dailySummariesByCourse = useMemo(() => {
                 const today = new Date().toISOString().split('T')[0];
-                const todayRecs = records.filter(r => r.date === today);
-                return {
-                    p: todayRecs.filter(r => r.status.includes('Presente')).length,
-                    a: todayRecs.filter(r => r.status === 'Ausente').length
-                };
-            }, [records]);
+                const recs = records.filter(r => r.date === today);
+                
+                return courses.map(c => {
+                    const courseRecs = recs.filter(r => r.course === c.name && r.school === c.school);
+                    if (courseRecs.length === 0) return null;
+                    
+                    return {
+                        name: c.name,
+                        school: c.school,
+                        p: courseRecs.filter(r => r.status.includes('Presente')).length,
+                        a: courseRecs.filter(r => r.status === 'Ausente').length
+                    };
+                }).filter(Boolean);
+            }, [records, courses]);
 
             const reportStats = useMemo(() => {
                 if (!selectedCourse) return [];
                 const courseRecs = records.filter(r => r.course === selectedCourse.name);
-                const courseAssignments = assignments.filter(a => a.courseId === selectedCourse.id);
-                
                 return selectedCourse.students.map(name => {
                     const studentRecs = courseRecs.filter(r => r.name === name);
                     const p = studentRecs.filter(r => r.status === 'Presente').length;
                     const t = studentRecs.filter(r => r.status === 'Presente con retraso').length;
                     const a = studentRecs.filter(r => r.status === 'Ausente').length;
-                    const totalAtt = p + t + a;
-                    const attPerc = totalAtt === 0 ? 0 : Math.round(((p + t) / totalAtt) * 100);
-                    
+                    const total = p + t + a;
+                    const perc = total === 0 ? 0 : Math.round(((p + t) / total) * 100);
                     const monthly = {}; const yearly = {};
                     studentRecs.forEach(r => {
                         const d = new Date(r.date); const mKey = d.getMonth(); const yKey = d.getFullYear();
@@ -198,95 +211,75 @@
                         else if(r.status === 'Presente con retraso') { monthly[mKey].t++; yearly[yKey].t++; }
                         else { monthly[mKey].a++; yearly[yKey].a++; }
                     });
-
-                    const studentDeliveries = deliveries.filter(d => d.studentName === name && courseAssignments.some(a => a.id === d.tpId));
-                    const deliveredOK = studentDeliveries.filter(d => d.status === 'Entregado').length;
-                    const deliveredLate = studentDeliveries.filter(d => d.status === 'Fuera de Término').length;
-                    const totalDelivered = deliveredOK + deliveredLate;
-                    const tpPerc = courseAssignments.length === 0 ? 0 : Math.round((totalDelivered / courseAssignments.length) * 100);
-
-                    return { name, p, t, a, attPerc, monthly, yearly, deliveredOK, deliveredLate, tpPerc, totalAssignments: courseAssignments.length };
+                    return { name, p, t, a, perc, monthly, yearly };
                 });
-            }, [records, assignments, deliveries, selectedCourse]);
+            }, [records, selectedCourse]);
 
             const handleBack = () => {
                 if (qrScannerRef.current) { 
                     try { qrScannerRef.current.stop(); qrScannerRef.current = null; } catch (e) {} 
                 }
-                setScreen('home'); setSelectedTP(null); setSelectedCourse(null); setSessionAttendance([]); 
-                setIsSaving(false); setCameraActive(false);
-                setFCourse({ name: '', school: '', students: '', schedule: {} }); 
-                setFTP({ name: '', startDate: '', endDate: '' });
-                processedNamesInSession.current.clear();
+                setScreen('home'); setSelectedTP(null); setSelectedCourse(null); setSessionAttendance([]); setIsSaving(false); setEditingCourseId(null);
+                setFCourse({ name: '', school: '', students: '', schedule: {} }); processedNamesInSession.current.clear();
             };
 
             const clearAttendanceHistory = async () => {
-                if (!confirm("⚠️ ¿BORRAR TODO EL HISTORIAL? Esta acción no se puede deshacer.")) return;
+                if (!confirm("⚠️ ¿BORRAR TODO EL HISTORIAL LOCAL? Esta acción no se puede deshacer en Firebase.")) return;
                 setIsSaving(true);
                 try {
                     const col = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('attendance');
                     const snapshot = await col.get();
-                    const batch = db.batch();
-                    snapshot.docs.forEach(doc => batch.delete(doc.ref));
-                    await batch.commit();
-                    showToast("Historial borrado");
-                } catch (e) {
-                    showToast("Error al borrar", "error");
-                } finally {
-                    setIsSaving(false);
-                }
+                    const batch = db.batch(); snapshot.docs.forEach(doc => batch.delete(doc.ref));
+                    await batch.commit(); showToast("Historial borrado");
+                } catch (e) { showToast("Error al borrar", "error"); } finally { setIsSaving(false); }
+            };
+
+            const saveCourse = async () => {
+                if(!fCourse.name || !fCourse.students || !fCourse.school) return showToast("Faltan datos", "error");
+                setIsSaving(true);
+                const col = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('courses');
+                const cleanStudentList = fCourse.students.split('\n').map(s => s.trim().toUpperCase().replace(/[\u200B-\u200D\uFEFF]/g, '')).filter(s => s !== "");
+                const courseData = { name: fCourse.name.trim(), school: fCourse.school.trim(), students: cleanStudentList, schedule: fCourse.schedule, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+                try {
+                    if (editingCourseId) { await col.doc(editingCourseId).update(courseData); showToast("Curso actualizado"); }
+                    else { await col.add({ ...courseData, createdAt: firebase.firestore.FieldValue.serverTimestamp() }); showToast("Curso creado"); }
+                    handleBack();
+                } catch (e) { showToast("Error al guardar", "error"); } finally { setIsSaving(false); }
             };
 
             const handleScan = (decodedText) => {
                 const nowTime = Date.now();
                 if (lastProcessedRef.current && (nowTime - lastProcessedRef.current < 2500)) return;
                 lastProcessedRef.current = nowTime;
-
-                let cleanName = decodedText.trim().toUpperCase().replace(/[\u200B-\u200D\uFEFF]/g, '');
-                if (!selectedCourse.students.some(s => s === cleanName)) {
-                    const match = selectedCourse.students.find(s => cleanName.includes(s) || s.includes(cleanName));
-                    if (match) cleanName = match;
-                    else return showToast(`No encontrado: ${cleanName}`, "error");
-                }
-
-                if (processedNamesInSession.current.has(cleanName)) { 
-                    speak("Ya registrado"); 
-                    return showToast(`${cleanName}: YA REGISTRADO`, "error"); 
-                }
-
+                let cleanName = decodedText.trim().toUpperCase().replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\r?\n|\r/g, "");
+                if (cleanName.includes("-")) cleanName = cleanName.split("-").pop().trim();
+                else if (cleanName.includes(":")) cleanName = cleanName.split(":").pop().trim();
+                if (!selectedCourse.students.some(s => s.trim() === cleanName)) return showToast(`No encontrado: ${cleanName}`, "error");
+                if (processedNamesInSession.current.has(cleanName)) { speak("Ya registrado"); return showToast(`${cleanName}: YA REGISTRADO`, "error"); }
                 processedNamesInSession.current.add(cleanName);
                 const now = new Date(); const todayDay = now.getDay(); let status = 'Presente';
-                
                 if (selectedCourse.schedule && selectedCourse.schedule[todayDay]) {
                     const [h, m] = selectedCourse.schedule[todayDay].split(':').map(Number);
-                    const limit = new Date(); limit.setHours(h, m + 10, 0); 
-                    if (now > limit) status = 'Presente con retraso';
-                }
+                    const limit = new Date(); limit.setHours(h, m, 0, 0); 
+                    if (now > limit) { status = 'Presente con retraso'; showToast(`${cleanName}: TARDANZA`, "info"); } else { showToast(`${cleanName} ✓`, "success"); }
+                } else { showToast(`${cleanName} ✓`, "success"); }
                 
                 speak(cleanName);
+                
                 setSessionAttendance(prev => [...prev, { name: cleanName, course: selectedCourse.name, school: selectedCourse.school, date: now.toISOString().split('T')[0], time: now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), status, type: 'Asistencia' }]);
-                showToast(`${cleanName} OK`, "success");
             };
 
-            const startScanner = async () => {
+            const startScanner = () => {
                 const readerElem = document.getElementById("reader");
                 if (!readerElem) return;
-                try {
-                    const html5QrCode = new Html5Qrcode("reader");
-                    qrScannerRef.current = html5QrCode;
-                    await html5QrCode.start({ facingMode: "environment" }, { fps: 15, qrbox: 250 }, (text) => handleScan(text));
-                    setCameraActive(true);
-                } catch (err) {
-                    try {
-                        await qrScannerRef.current.start({ facingMode: "user" }, { fps: 15, qrbox: 250 }, (text) => handleScan(text));
-                        setCameraActive(true);
-                    } catch (e) { showToast("Error de cámara", "error"); }
-                }
+                const html5QrCode = new Html5Qrcode("reader");
+                qrScannerRef.current = html5QrCode;
+                html5QrCode.start({ facingMode: "environment" }, { fps: 15, qrbox: 250 }, (text) => handleScan(text)).catch(err => console.error(err));
             };
 
             useEffect(() => {
                 if (screen === 'asist-run' && selectedCourse) {
-                    const timer = setTimeout(startScanner, 1000);
+                    const timer = setTimeout(startScanner, 500);
                     return () => clearTimeout(timer);
                 }
             }, [screen, selectedCourse]);
@@ -297,24 +290,40 @@
                 const path = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('attendance');
                 const today = new Date().toISOString().split('T')[0];
                 try {
-                    const snapshot = await path.get();
-                    const batch = db.batch();
-                    snapshot.docs.forEach(doc => {
-                        const d = doc.data();
-                        if (d.course === selectedCourse.name && d.date === today) batch.delete(doc.ref);
-                    });
+                    const existingDocs = await path.where('course', '==', selectedCourse.name).where('date', '==', today).get();
+                    const batch = db.batch(); existingDocs.docs.forEach(doc => batch.delete(doc.ref));
                     const ausentes = selectedCourse.students.filter(n => !sessionAttendance.find(s => s.name === n)).map(n => ({ 
-                        name: n, course: selectedCourse.name, school: selectedCourse.school, date: today, status: 'Ausente', time: '--:--', type: 'Asistencia' 
+                        name: n, 
+                        course: selectedCourse.name, 
+                        school: selectedCourse.school, 
+                        date: today, 
+                        status: 'Ausente', 
+                        time: '--:--', 
+                        type: 'Asistencia' 
                     }));
                     const allRecords = [...sessionAttendance, ...ausentes];
                     allRecords.forEach(rec => { const docRef = path.doc(); batch.set(docRef, rec); });
+                    
                     await batch.commit();
-                    if (GS_API_URL.startsWith("http") && navigator.onLine) {
-                        fetch(GS_API_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action: "attendance_bulk", payload: allRecords }) });
+
+                    if (GS_API_URL.startsWith("http")) {
+                        if(navigator.onLine) {
+                            showToast("Sincronizando...", "info");
+                            fetch(GS_API_URL, { 
+                                method: 'POST', 
+                                mode: 'no-cors', 
+                                body: JSON.stringify({ action: "attendance_bulk", payload: allRecords }) 
+                            });
+                        } else {
+                            showToast("Guardado localmente. Sincronización pendiente.", "info");
+                        }
                     }
                     showToast("✓ Jornada Finalizada");
                     setTimeout(handleBack, 500);
-                } catch (e) { showToast("Error", "error"); setIsSaving(false); }
+                } catch (e) { 
+                    showToast("Error al guardar", "error"); 
+                    setIsSaving(false); 
+                }
             };
 
             if (loading) return <div className="flex h-screen items-center justify-center bg-indigo-700 text-white font-black uppercase text-xs animate-pulse italic">Cargando...</div>;
@@ -324,6 +333,12 @@
                     {toast && (
                         <div className={`fixed top-10 left-1/2 -translate-x-1/2 z-[100] px-6 py-4 rounded-3xl shadow-2xl animate-in font-black text-[10px] uppercase flex items-center gap-3 border ${toast.type === 'success' ? 'bg-green-500 text-white border-green-400' : 'bg-indigo-600 text-white border-indigo-500'}`}>
                             {toast.msg}
+                        </div>
+                    )}
+
+                    {isOffline && (
+                        <div className="bg-amber-500 text-white text-[8px] font-black uppercase py-1 text-center tracking-widest no-print">
+                            Modo Sin Conexión - Los datos se sincronizarán al recuperar señal
                         </div>
                     )}
 
@@ -342,44 +357,67 @@
                             <div className="animate-in pb-10 text-center">
                                 <div className="bg-indigo-700 text-white p-10 pb-20 rounded-b-[50px] text-center shadow-xl relative overflow-hidden">
                                     <div className="absolute top-0 right-0 -mr-10 -mt-10 w-48 h-48 bg-white/10 rounded-full blur-3xl"></div>
-                                    <p className="text-indigo-200 text-[10px] font-black uppercase tracking-[0.5em] mb-2">Panel Docente</p>
-                                    <h1 className="text-5xl font-black uppercase italic tracking-tighter leading-none">Assistant Day</h1>
-                                </div>
-                                <div className="px-6 -mt-14 grid grid-cols-2 gap-4">
-                                    <HomeBtn onClick={() => { unlockVoice(); setScreen('sel-asist'); }} icon={<i data-lucide="qr-code" size={32}></i>} label="Pasar Lista" color="text-indigo-600" />
-                                    <HomeBtn onClick={() => setScreen('sel-tp')} icon={<i data-lucide="clipboard-list" size={32}></i>} label="Entrega TP" color="text-indigo-600" />
-                                    <HomeBtn onClick={() => setScreen('sel-report')} icon={<i data-lucide="bar-chart-3" size={32}></i>} label="Reportes" color="text-slate-500" />
-                                    <HomeBtn onClick={() => setScreen('sel-qr')} icon={<i data-lucide="printer" size={32}></i>} label="Generar QR" color="text-slate-500" />
-                                    <HomeBtn onClick={() => setScreen('manage')} icon={<i data-lucide="settings" size={32}></i>} label="Gestionar" color="text-slate-400" />
+                                    <p className="text-indigo-200 text-[10px] font-black uppercase tracking-[0.5em] mb-2 text-center">Panel Docente</p>
+                                    <h1 className="text-5xl font-black uppercase italic tracking-tighter leading-none text-center">Assistant Day</h1>
                                 </div>
 
-                                {/* RESUMEN DE HOY */}
-                                <div className="px-6 mt-10 text-left">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 px-2 italic">Resumen de Hoy (Global)</p>
-                                    <div className="bg-white p-8 rounded-[40px] shadow-xl border border-slate-100 text-center">
-                                        <div className="flex justify-around items-center">
-                                            <div className="text-center">
-                                                <p className="text-6xl font-black text-green-600 leading-none">{todaySummary.p}</p>
-                                                <p className="text-[10px] font-black uppercase text-green-500 mt-2">Presentes</p>
-                                            </div>
-                                            <div className="w-px h-12 bg-slate-100"></div>
-                                            <div className="text-center">
-                                                <p className="text-6xl font-black text-red-600 leading-none">{todaySummary.a}</p>
-                                                <p className="text-[10px] font-black uppercase text-red-400 mt-2">Ausentes</p>
-                                            </div>
+                                <div className="px-6 -mt-14 grid grid-cols-2 gap-4">
+                                    <MenuBtn icon="qr-code" label="Pasar Lista" color="text-indigo-600" onClick={() => { unlockVoice(); setScreen('sel-asist'); }} />
+                                    <MenuBtn icon="clipboard-list" label="Entrega TP" color="text-indigo-600" onClick={() => setScreen('sel-tp')} />
+                                    <MenuBtn icon="bar-chart-3" label="Reportes" color="text-slate-500" onClick={() => setScreen('sel-report')} />
+                                    <MenuBtn icon="printer" label="Generar QR" color="text-slate-500" onClick={() => setScreen('sel-qr')} />
+                                    <MenuBtn icon="settings" label="Gestionar" color="text-slate-400" onClick={() => setScreen('manage')} />
+                                </div>
+
+                                <div className="px-6 mt-8 space-y-4">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 italic text-left">Resumen de Hoy</p>
+                                    {dailySummariesByCourse.length === 0 ? (
+                                        <div className="bg-white p-8 rounded-[40px] border border-dashed border-slate-200 text-center">
+                                            <p className="text-[9px] text-slate-300 font-bold uppercase italic">Sin actividad registrada hoy</p>
                                         </div>
-                                    </div>
+                                    ) : (
+                                        dailySummariesByCourse.map((c, idx) => (
+                                            <div key={idx} className="bg-white p-6 rounded-[40px] shadow-xl border border-slate-100 animate-in">
+                                                <div className="flex justify-between items-start mb-4 border-b border-slate-50 pb-3">
+                                                    <div className="text-left">
+                                                        <p className="text-[11px] font-black text-slate-800 uppercase italic leading-tight">{c.name}</p>
+                                                        <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">{c.school}</p>
+                                                    </div>
+                                                    <div className="bg-indigo-50 px-3 py-1 rounded-full">
+                                                        <span className="text-[8px] font-black text-indigo-600 uppercase tracking-widest">Sincronizado</span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex justify-around items-center">
+                                                    <div className="text-center">
+                                                        <p className="text-4xl font-black text-green-600 leading-none">{c.p}</p>
+                                                        <p className="text-[8px] font-black uppercase text-green-500 mt-1">Presentes</p>
+                                                    </div>
+                                                    <div className="w-px h-10 bg-slate-100"></div>
+                                                    <div className="text-center">
+                                                        <p className="text-4xl font-black text-red-600 leading-none">{c.a}</p>
+                                                        <p className="text-[8px] font-black uppercase text-red-400 mt-1">Ausentes</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
                                 </div>
 
                                 <div className="p-8 text-left">
-                                    <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 px-2 italic">Tus Cursos</h2>
+                                    <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 px-2 italic">Tus Cursos Registrados</h2>
                                     <div className="space-y-3">
                                         {courses.map(c => (
                                             <div key={c.id} className="bg-slate-50 p-5 rounded-[32px] border border-slate-100 flex items-center justify-between shadow-sm">
-                                                <div className="flex-1 text-left"><p className="font-black text-slate-700 uppercase text-xs truncate">{c.name}</p><p className="text-[8px] text-indigo-400 font-bold uppercase mt-1 italic tracking-widest">{c.school}</p></div>
-                                                <div className="text-right"><p className="text-[8px] text-slate-400 font-bold uppercase italic">{c.students.length} alumnos</p></div>
+                                                <div className="flex-1 text-left">
+                                                    <p className="font-black text-slate-700 uppercase text-xs leading-none truncate">{c.name}</p>
+                                                    <p className="text-[8px] text-indigo-400 font-bold uppercase mt-1 italic tracking-widest">{c.school}</p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-[8px] text-slate-400 font-bold uppercase italic">{c.students.length} alumnos</p>
+                                                </div>
                                             </div>
                                         ))}
+                                        {courses.length === 0 && <p className="text-center py-10 text-[9px] text-slate-300 font-bold uppercase italic tracking-widest">No hay cursos creados</p>}
                                     </div>
                                 </div>
                             </div>
@@ -388,43 +426,55 @@
                         {screen === 'manage' && (
                             <div className="p-6 space-y-6 animate-in text-left pb-20">
                                 <div className="bg-white p-6 rounded-[40px] shadow-xl border border-slate-100 space-y-5">
-                                    <p className="text-[10px] font-black text-indigo-600 uppercase italic px-2">Nuevo Curso</p>
-                                    <input value={fCourse.name} onChange={e=>setFCourse({...fCourse, name:e.target.value})} placeholder="Nombre: Ej 4to 1ra" className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-none outline-none text-sm" />
-                                    <input value={fCourse.school} onChange={e=>setFCourse({...fCourse, school:e.target.value})} placeholder="Escuela" className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-none outline-none text-sm" />
+                                    <div className="flex justify-between items-center px-2">
+                                        <p className="text-[10px] font-black text-indigo-600 uppercase italic">{editingCourseId ? 'Editando' : 'Nuevo Curso'}</p>
+                                        {editingCourseId && <button onClick={handleBack} className="text-[8px] font-black text-red-400 uppercase tracking-widest">Cancelar</button>}
+                                    </div>
+                                    <input value={fCourse.name} onChange={e=>setFCourse({...fCourse, name:e.target.value})} placeholder="Nombre: Ej 4to 1ra" className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-none outline-none text-sm shadow-inner" />
+                                    <input value={fCourse.school} onChange={e=>setFCourse({...fCourse, school:e.target.value})} placeholder="Escuela: Ej Escuela Normal" className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-none outline-none text-sm shadow-inner" />
                                     <div className="space-y-3">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2 italic text-left">Días y Horario de Entrada</p>
+                                        <p className="text-[9px] font-black text-slate-400 uppercase ml-2 italic text-left">Días y Horario de Entrada</p>
                                         <div className="flex justify-between gap-1">
                                             {DAYS_ES.slice(1,7).map(d => (
-                                                <button key={d.id} onClick={()=>{ const n = {...fCourse.schedule}; if(n[d.id]) delete n[d.id]; else n[d.id]="08:00"; setFCourse({...fCourse, schedule:n}); }} className={`flex-1 h-12 rounded-xl text-[10px] font-black border transition-all ${fCourse.schedule[d.id] ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg' : 'bg-white text-slate-400 border-slate-100'}`}>{d.label.slice(0,1)}</button>
+                                                <button key={d.id} onClick={()=>{
+                                                    const n = {...fCourse.schedule}; if(n[d.id]) delete n[d.id]; else n[d.id]="08:00";
+                                                    setFCourse({...fCourse, schedule:n});
+                                                }} className={`flex-1 h-12 rounded-xl text-[10px] font-black border transition-all ${fCourse.schedule[d.id] ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg' : 'bg-white text-slate-400 border-slate-100'}`}>{d.label.slice(0,1)}</button>
                                             ))}
                                         </div>
-                                        {Object.entries(fCourse.schedule).map(([k,v]) => (
-                                            <div key={k} className="flex items-center justify-between bg-slate-50 p-2 rounded-xl"><span className="text-[9px] font-black text-slate-400 uppercase">{DAYS_ES.find(x=>x.id==k).label}</span><input type="time" value={v} onChange={e=>setFCourse({...fCourse, schedule: {...fCourse.schedule, [k]:e.target.value}})} className="bg-white border rounded px-2 text-xs font-bold" /></div>
+                                        {Object.entries(fCourse.schedule).map(([d, t]) => (
+                                            <div key={d} className="flex items-center justify-between bg-slate-50 p-3 rounded-2xl border border-indigo-50 animate-in">
+                                                <span className="text-[9px] font-black text-slate-500 uppercase italic pl-2">{DAYS_ES.find(x=>x.id==d).label}</span>
+                                                <input type="time" value={t} onChange={e => setFCourse({...fCourse, schedule:{...fCourse.schedule, [d]:e.target.value}})} className="bg-transparent font-black text-indigo-600 text-xs outline-none" />
+                                            </div>
                                         ))}
                                     </div>
-                                    <textarea value={fCourse.students} onChange={e=>setFCourse({...fCourse, students:e.target.value})} placeholder="Alumnos (uno por línea)..." className="w-full p-4 bg-slate-50 rounded-2xl h-40 outline-none text-xs font-medium"></textarea>
-                                    <button onClick={async () => {
-                                        if(!fCourse.name || !fCourse.school || !fCourse.students) return showToast("Faltan datos", "error");
-                                        const list = fCourse.students.split('\n').map(s=>s.trim().toUpperCase()).filter(s=>s!=="");
-                                        await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('courses').add({...fCourse, students: list, createdAt: firebase.firestore.FieldValue.serverTimestamp()});
-                                        handleBack(); showToast("Curso Guardado");
-                                    }} disabled={isSaving} className="w-full bg-indigo-700 text-white p-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl">{isSaving ? 'Guardando...' : 'Guardar Curso'}</button>
+                                    <textarea value={fCourse.students} onChange={e=>setFCourse({...fCourse, students:e.target.value})} placeholder="Alumnos (uno por línea)..." className="w-full p-4 bg-slate-50 rounded-2xl h-40 outline-none text-xs font-medium shadow-inner"></textarea>
+                                    <button onClick={saveCourse} disabled={isSaving} className={`w-full ${isSaving ? 'bg-slate-400' : 'bg-indigo-700'} text-white p-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl flex items-center justify-center gap-2`}>
+                                        {isSaving ? 'Guardando...' : editingCourseId ? 'Actualizar Curso' : 'Guardar Curso'}
+                                    </button>
                                 </div>
-
-                                {/* SECCIÓN RESTAURADA: ZONA DE PELIGRO */}
+                                
                                 <div className="bg-red-50 p-6 rounded-[40px] border border-red-100 shadow-sm space-y-4">
-                                    <div className="flex items-center gap-2 text-red-600 px-2">
-                                        <i data-lucide="alert-triangle" size={16}></i>
-                                        <p className="text-[10px] font-black uppercase italic tracking-widest">Zona de Peligro</p>
+                                    <div className="flex items-center gap-3 text-red-600">
+                                        <i data-lucide="alert-triangle" size={20}></i>
+                                        <p className="text-[10px] font-black uppercase tracking-widest italic">Zona de Peligro</p>
                                     </div>
-                                    <button onClick={clearAttendanceHistory} className="w-full bg-red-600 text-white p-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg active:scale-95 transition-all">Borrar Historial Completo</button>
+                                    <button onClick={clearAttendanceHistory} className="w-full bg-red-600 text-white p-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg active:scale-95 transition-all">Borrar Historial Local</button>
                                 </div>
-
-                                <div className="space-y-3 pt-4">
+                                
+                                <div className="space-y-3 pt-4 text-left">
+                                    <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest italic px-2">Cursos Registrados</p>
                                     {courses.map(c => (
                                         <div key={c.id} className="bg-white p-4 rounded-2xl border flex justify-between items-center shadow-sm">
-                                            <div className="flex-1 text-left"><p className="font-black text-slate-700 uppercase text-[10px]">{c.name}</p><p className="text-[8px] text-indigo-400 font-bold uppercase mt-1 italic">{c.school}</p></div>
-                                            <button onClick={() => confirm("¿Borrar?") && db.collection('artifacts').doc(appId).collection('public').doc('data').collection('courses').doc(c.id).delete()} className="text-red-400 p-2"><i data-lucide="trash-2"></i></button>
+                                            <div className="flex-1 text-left">
+                                                <p className="font-black text-slate-700 uppercase text-[10px]">{c.name}</p>
+                                                <p className="text-[8px] text-indigo-400 font-bold uppercase mt-1 italic tracking-widest">{c.school}</p>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => { setFCourse({name:c.name, school:c.school || '', students:c.students.join('\n'), schedule:c.schedule || {}}); setEditingCourseId(c.id); }} className="text-indigo-400 p-2"><i data-lucide="pencil" size={16}></i></button>
+                                                <button onClick={() => confirm("¿Borrar?") && db.collection('artifacts').doc(appId).collection('public').doc('data').collection('courses').doc(c.id).delete()} className="text-red-400 p-2"><i data-lucide="trash-2" size={16}></i></button>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -444,19 +494,31 @@
 
                         {screen === 'asist-run' && selectedCourse && (
                             <div className="p-6 flex flex-col space-y-6 text-center animate-in">
-                                <div className="bg-slate-900 aspect-square rounded-[48px] shadow-2xl relative overflow-hidden flex items-center justify-center">
+                                <div className="bg-slate-900 aspect-square rounded-[48px] shadow-2xl relative overflow-hidden">
                                     <div id="reader" className="w-full h-full"></div>
-                                    {!cameraActive && (
-                                        <div className="absolute inset-0 flex flex-col items-center justify-center p-10 bg-slate-900/80 z-10">
-                                            <button onClick={startScanner} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl">Activar Cámara</button>
-                                        </div>
-                                    )}
+                                    <div className="absolute inset-0 border-2 border-indigo-500/30 rounded-[48px] pointer-events-none"></div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div className="bg-green-50 p-6 rounded-3xl border text-center"><p className="text-4xl font-black text-green-600 leading-none">{sessionAttendance.length}</p><p className="text-[9px] font-black uppercase text-green-400 mt-2">Presentes</p></div>
-                                    <div className="bg-red-50 p-6 rounded-3xl border text-center"><p className="text-4xl font-black text-red-600 leading-none">{selectedCourse.students.length - sessionAttendance.length}</p><p className="text-[9px] font-black uppercase text-red-400 mt-2">Faltan</p></div>
+                                    <div className="bg-green-50 p-6 rounded-3xl border text-center">
+                                        <p className="text-4xl font-black text-green-600 leading-none">{sessionAttendance.length}</p>
+                                        <p className="text-[9px] font-black uppercase text-green-400 mt-2">Presentes</p>
+                                    </div>
+                                    <div className="bg-red-50 p-6 rounded-3xl border text-center">
+                                        <p className="text-4xl font-black text-red-600 leading-none">{selectedCourse.students.length - sessionAttendance.length}</p>
+                                        <p className="text-[9px] font-black uppercase text-red-400 mt-2">Faltan</p>
+                                    </div>
                                 </div>
-                                <button onClick={finalizeAsistencia} disabled={isSaving} className="w-full bg-indigo-700 text-white p-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl">Finalizar Jornada</button>
+                                <div className="max-h-40 overflow-y-auto space-y-2 p-2 bg-slate-50 rounded-3xl border border-slate-100 scrollbar-hide text-left">
+                                    {sessionAttendance.map((s, idx) => (
+                                        <div key={idx} className="bg-white p-3 rounded-2xl flex justify-between items-center border border-slate-50 animate-in mx-2 shadow-sm">
+                                            <span className="text-[10px] font-black text-slate-600 uppercase italic truncate max-w-[70%]">{s.name}</span>
+                                            <span className={`text-[9px] font-bold uppercase tracking-widest italic ${s.status === 'Presente' ? 'text-green-500' : 'text-amber-500'}`}>{s.time}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                                <button onClick={finalizeAsistencia} disabled={isSaving} className={`w-full ${isSaving ? 'bg-slate-400' : 'bg-indigo-700'} text-white p-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl flex items-center justify-center gap-3`}>
+                                    {isSaving ? 'Guardando...' : 'Finalizar Jornada'}
+                                </button>
                             </div>
                         )}
 
@@ -465,7 +527,7 @@
                                 {courses.map(c => (
                                     <button key={c.id} onClick={()=>{setSelectedCourse(c); setScreen('tp-list');}} className="w-full bg-white p-6 rounded-[32px] border flex justify-between items-center shadow-sm text-left active:scale-95 transition-all">
                                         <div><span className="font-black uppercase text-xs text-slate-700 block">{c.name}</span><span className="text-[8px] font-black text-indigo-400 uppercase italic">{c.school}</span></div>
-                                        <i data-lucide="clipboard-list" className="text-indigo-600"></i>
+                                        <i data-lucide="chevron-right" className="text-indigo-600"></i>
                                     </button>
                                 ))}
                             </div>
@@ -474,23 +536,24 @@
                         {screen === 'tp-list' && selectedCourse && (
                             <div className="p-6 space-y-6 animate-in text-left">
                                 <div className="bg-white p-6 rounded-[32px] border shadow-lg space-y-4">
-                                    <p className="text-[10px] font-black text-indigo-600 uppercase italic ml-2">Nuevo TP</p>
-                                    <input value={fTP.name} onChange={e=>setFTP({...fTP, name:e.target.value})} placeholder="Nombre del TP..." className="w-full p-4 bg-slate-50 rounded-2xl outline-none font-bold text-sm border" />
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <div><p className="text-[8px] font-black uppercase text-slate-400 ml-2 mb-1">Inicio</p><input type="date" value={fTP.startDate} onChange={e=>setFTP({...fTP, startDate:e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl outline-none font-bold text-[10px] border" /></div>
-                                        <div><p className="text-[8px] font-black uppercase text-slate-400 ml-2 mb-1">Límite</p><input type="date" value={fTP.endDate} onChange={e=>setFTP({...fTP, endDate:e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl outline-none font-bold text-[10px] border" /></div>
+                                    <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-2 italic">Nuevo Trabajo Práctico</p>
+                                    <div className="flex gap-2">
+                                        <input value={fTP.name} onChange={e=>setFTP({name:e.target.value})} placeholder="Nombre del TP..." className="flex-1 p-4 bg-slate-50 rounded-2xl outline-none font-bold text-sm border shadow-inner" />
+                                        <button onClick={async () => {
+                                            if(!fTP.name) return;
+                                            await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('assignments').add({name:fTP.name, courseId:selectedCourse.id, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+                                            setFTP({name:''}); showToast("TP creado");
+                                        }} className="p-4 bg-indigo-600 text-white rounded-2xl shadow-lg flex items-center justify-center"><i data-lucide="plus"></i></button>
                                     </div>
-                                    <button onClick={async () => {
-                                        if(!fTP.name) return showToast("Falta nombre", "error");
-                                        await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('assignments').add({...fTP, courseId:selectedCourse.id, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-                                        setFTP({name:'', startDate: '', endDate: ''}); showToast("TP creado");
-                                    }} className="w-full p-4 bg-indigo-600 text-white rounded-2xl shadow-lg flex items-center justify-center gap-2 font-black uppercase text-xs tracking-widest">Crear TP</button>
                                 </div>
                                 <div className="space-y-3">
                                     {assignments.filter(a => a.courseId === selectedCourse.id).map(a => (
                                         <div key={a.id} onClick={()=>{setSelectedTP(a); setScreen('tp-check');}} className="bg-white p-6 rounded-[36px] shadow-sm border flex items-center justify-between active:scale-95 transition-all cursor-pointer">
-                                            <div className="text-left"><h3 className="font-black text-xs text-slate-800 uppercase leading-tight">{a.name}</h3><p className="text-[8px] text-slate-400 font-bold uppercase mt-1 italic">{a.startDate || 'S/D'} al {a.endDate || 'S/D'}</p></div>
-                                            <i data-lucide="chevron-right" className="text-indigo-600"></i>
+                                            <div className="text-left">
+                                               <h3 className="font-black text-xs text-slate-800 uppercase leading-tight">{a.name}</h3>
+                                               <p className="text-[9px] text-indigo-400 font-black uppercase tracking-widest mt-1 italic">Click para cargar entregas</p>
+                                            </div>
+                                            <button onClick={(e)=>{e.stopPropagation(); confirm("¿Eliminar?") && db.collection('artifacts').doc(appId).collection('public').doc('data').collection('assignments').doc(a.id).delete();}} className="text-slate-200 hover:text-red-400"><i data-lucide="trash-2"></i></button>
                                         </div>
                                     ))}
                                 </div>
@@ -500,27 +563,30 @@
                         {screen === 'tp-check' && selectedTP && selectedCourse && (
                             <div className="p-6 space-y-4 animate-in pb-20 text-left">
                                 <div className="bg-indigo-50 p-6 rounded-[40px] border border-indigo-100 flex justify-between items-center shadow-inner">
-                                    <div><p className="text-[10px] font-black text-indigo-400 uppercase italic">{selectedCourse.name}</p><h2 className="text-xl font-black text-indigo-800 uppercase leading-tight">{selectedTP.name}</h2></div>
-                                    <div className="text-right"><p className="text-3xl font-black text-indigo-700">{deliveries.filter(d => d.tpId === selectedTP.id && d.status === 'Entregado').length}</p><p className="text-[8px] font-black uppercase text-indigo-400 italic">OK</p></div>
+                                    <div className="text-left">
+                                       <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest italic">{selectedCourse.name}</p>
+                                       <h2 className="text-xl font-black text-indigo-800 uppercase">{selectedTP.name}</h2>
+                                    </div>
+                                    <div className="text-right">
+                                       <p className="text-3xl font-black text-indigo-700">{deliveries.filter(d => d.tpId === selectedTP.id && d.status === 'Entregado').length} / {selectedCourse.students.length}</p>
+                                       <p className="text-[8px] font-black uppercase text-indigo-400 italic">Entregas</p>
+                                    </div>
                                 </div>
                                 <div className="space-y-2">
                                     {selectedCourse.students.map((s, idx) => {
                                         const d = deliveries.find(x => x.tpId === selectedTP.id && x.studentName === s);
                                         const status = d ? d.status : 'Pendiente';
                                         return (
-                                            <div key={idx} className={`flex items-center justify-between p-4 rounded-3xl border transition-all cursor-pointer ${status === 'Entregado' ? 'bg-green-50 border-green-200' : status === 'Fuera de Término' ? 'bg-orange-50 border-orange-200' : 'bg-white border-slate-100 shadow-sm'}`}
-                                                 onClick={async () => {
+                                            <div key={idx} className={`flex items-center justify-between p-4 rounded-3xl border transition-all cursor-pointer ${status === 'Entregado' ? 'bg-green-50 border-green-200' : 'bg-white border-slate-100 shadow-sm'}`}
+                                                 onClick={async ()=>{
                                                     const path = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('deliveries');
                                                     const docId = `${selectedTP.id}_${s.replace(/\s+/g, '_')}`;
-                                                    let nStatus = 'Pendiente';
-                                                    if (status === 'Pendiente') nStatus = 'Entregado';
-                                                    else if (status === 'Entregado') nStatus = 'Fuera de Término';
-                                                    else nStatus = 'Pendiente';
-                                                    if (nStatus === 'Pendiente') await path.doc(docId).delete();
-                                                    else await path.doc(docId).set({ tpId: selectedTP.id, studentName: s, status: nStatus, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+                                                    const nStatus = status === 'Entregado' ? 'Pendiente' : 'Entregado';
+                                                    if (nStatus === 'Entregado') await path.doc(docId).set({ tpId: selectedTP.id, studentName: s, status: nStatus, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+                                                    else await path.doc(docId).delete();
                                                  }}>
-                                                <span className={`text-[10px] font-black uppercase truncate flex-1 pr-4 text-left ${status === 'Entregado' ? 'text-green-700' : status === 'Fuera de Término' ? 'text-orange-700' : 'text-slate-500'}`}>{s}</span>
-                                                <div className={`px-4 py-2 rounded-2xl font-black text-[9px] uppercase tracking-widest transition-all ${status === 'Entregado' ? 'bg-green-600 text-white' : status === 'Fuera de Término' ? 'bg-orange-500 text-white' : 'bg-slate-50 text-slate-400'} text-right`}>{status}</div>
+                                                <span className={`text-[10px] font-black uppercase truncate flex-1 pr-4 text-left ${status === 'Entregado' ? 'text-green-700' : 'text-slate-500'}`}>{s}</span>
+                                                <div className={`px-4 py-2 rounded-2xl font-black text-[9px] uppercase tracking-widest transition-all ${status === 'Entregado' ? 'bg-green-600 text-white shadow-md' : 'bg-slate-50 text-slate-400'} text-right`}>{status}</div>
                                             </div>
                                         );
                                     })}
@@ -540,49 +606,31 @@
                         )}
 
                         {screen === 'report-view' && selectedCourse && (
-                            <div className="p-6 space-y-4 animate-in pb-24 text-center">
-                                <div className="flex bg-slate-200 p-1 rounded-[24px] shadow-inner mb-4 overflow-x-auto scrollbar-hide no-wrap">
-                                    {['general', 'mensual', 'anual', 'tps'].map(t => (
-                                        <button key={t} onClick={() => setReportTab(t)} className={`flex-1 py-3 px-4 text-[9px] font-black uppercase rounded-[20px] transition-all whitespace-nowrap ${reportTab === t ? 'bg-white text-indigo-600 shadow-xl' : 'text-slate-400'}`}>{t === 'general' ? 'Gral' : t === 'mensual' ? 'Mes' : t === 'anual' ? 'Año' : 'Tareas'}</button>
+                            <div className="p-6 space-y-4 animate-in pb-24 text-center border-t border-slate-100">
+                                <div className="flex bg-slate-200 p-1.5 rounded-3xl shadow-inner mb-4">
+                                    {['general', 'mensual', 'anual'].map(t => (
+                                        <button key={t} onClick={() => setReportTab(t)} className={`flex-1 py-3 text-[10px] font-black uppercase rounded-[22px] transition-all ${reportTab === t ? 'bg-white text-indigo-600 shadow-xl' : 'text-slate-400'}`}>
+                                            {t === 'general' ? 'Gral' : t === 'mensual' ? 'Mes' : 'Año'}
+                                        </button>
                                     ))}
                                 </div>
-                                {reportTab === 'tps' ? (
-                                    <div className="space-y-4 text-left">
-                                        {reportStats.map((s, i) => (
-                                            <div key={i} className="bg-white p-6 rounded-[40px] shadow-sm border space-y-4 animate-in">
-                                                <div className="flex justify-between items-start border-b border-slate-50 pb-3">
-                                                    <div className="max-w-[70%]">
-                                                        <p className="font-black text-slate-800 text-[11px] uppercase leading-tight italic">{s.name}</p>
-                                                        <p className="text-[8px] font-black text-slate-400 uppercase mt-1 tracking-widest italic">Rendimiento en Trabajos</p>
-                                                    </div>
-                                                    <div className={`px-4 py-2 rounded-2xl font-black text-xs ${s.tpPerc > 70 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>{s.tpPerc}%</div>
-                                                </div>
-                                                <div className="grid grid-cols-3 gap-2">
-                                                    <div className="text-center bg-slate-50 p-3 rounded-2xl">
-                                                        <p className="text-xl font-black text-indigo-600 leading-none">{s.totalAssignments}</p>
-                                                        <p className="text-[6px] font-black text-indigo-400 uppercase mt-1">Totales</p>
-                                                    </div>
-                                                    <div className="text-center bg-green-50 p-3 rounded-2xl">
-                                                        <p className="text-xl font-black text-green-600 leading-none">{s.deliveredOK}</p>
-                                                        <p className="text-[6px] font-black text-green-400 uppercase mt-1">OK</p>
-                                                    </div>
-                                                    <div className="text-center bg-orange-50 p-3 rounded-2xl">
-                                                        <p className="text-xl font-black text-orange-600 leading-none">{s.deliveredLate}</p>
-                                                        <p className="text-[6px] font-black text-orange-400 uppercase mt-1">Tardíos</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : reportTab === 'general' ? (
+                                {reportTab === 'general' ? (
                                     <div className="bg-white rounded-[40px] border overflow-hidden shadow-xl animate-in text-center">
                                         <table className="w-full text-xs border-collapse">
                                             <thead className="bg-slate-50 text-[8px] font-black uppercase text-slate-400 border-b">
                                                 <tr><th className="p-4 text-left">Alumno</th><th>P</th><th>T</th><th>A</th><th className="p-4 text-right">%</th></tr>
                                             </thead>
-                                            <tbody className="divide-y divide-slate-50">{reportStats.map((s, i) => (
-                                                <tr key={i}><td className="p-4 text-left font-black text-slate-700 text-[10px] uppercase truncate max-w-[120px]">{s.name}</td><td className="text-green-600 font-bold">{s.p}</td><td className="text-amber-500 font-bold">{s.t}</td><td className="text-red-500 font-bold">{s.a}</td><td className={`p-4 text-right font-black ${s.attPerc > 80 ? 'text-green-600' : 'text-red-500'}`}>{s.attPerc}%</td></tr>
-                                            ))}</tbody>
+                                            <tbody className="divide-y divide-slate-50">
+                                                {reportStats.map((s, i) => (
+                                                    <tr key={i} className="active:bg-slate-50 text-center">
+                                                        <td className="p-4 text-left font-black text-slate-700 text-[9px] uppercase italic truncate max-w-[120px]">{s.name}</td>
+                                                        <td className="text-green-600 font-bold">{s.p}</td>
+                                                        <td className="text-amber-500 font-bold">{s.t}</td>
+                                                        <td className="text-red-500 font-bold">{s.a}</td>
+                                                        <td className={`p-4 text-right font-black ${s.perc > 80 ? 'text-green-600' : 'text-red-500'}`}>{s.perc}%</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
                                         </table>
                                     </div>
                                 ) : (
@@ -590,8 +638,11 @@
                                         {reportStats.map((s, i) => (
                                             <div key={i} className="bg-white p-6 rounded-[40px] shadow-sm border space-y-4 animate-in">
                                                 <div className="flex justify-between items-start">
-                                                    <div className="max-w-[70%] text-left"><p className="font-black text-slate-800 text-[11px] uppercase italic">{s.name}</p></div>
-                                                    <div className={`px-4 py-2 rounded-2xl font-black text-xs ${s.attPerc > 80 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>{s.attPerc}%</div>
+                                                    <div className="max-w-[70%] text-left">
+                                                        <p className="font-black text-slate-800 text-[11px] uppercase leading-tight italic">{s.name}</p>
+                                                        <p className="text-[8px] font-black text-slate-400 uppercase mt-1 tracking-widest italic">{reportTab === 'mensual' ? 'Resumen Mensual' : 'Resumen Anual'}</p>
+                                                    </div>
+                                                    <div className={`px-4 py-2 rounded-2xl font-black text-xs ${s.perc > 80 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>{s.perc}%</div>
                                                 </div>
                                                 <div className="space-y-2">
                                                     {(reportTab === 'mensual' ? Object.entries(s.monthly) : Object.entries(s.yearly)).sort().reverse().map(([k, d]) => (
@@ -643,12 +694,12 @@
             );
         }
 
-        const HomeBtn = ({ icon, label, onClick, color = "text-slate-600" }) => {
+        const MenuBtn = ({ icon, label, onClick, color = "text-slate-600" }) => {
             useEffect(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, []);
             return (
-                <button onClick={onClick} className="flex flex-col items-center justify-center p-7 bg-white rounded-[40px] shadow-lg border border-slate-50 active:scale-90 transition-all group overflow-hidden relative">
+                <button onClick={onClick} className="flex flex-col items-center justify-center p-7 bg-white rounded-[40px] shadow-lg border border-slate-50 active:scale-90 transition-all cursor-pointer relative overflow-hidden group">
                     <div className="absolute inset-0 bg-indigo-50/0 group-active:bg-indigo-50/100 transition-all"></div>
-                    <div className={`${color} mb-3 group-hover:scale-110 transition-transform relative z-10 flex items-center justify-center`}>{icon}</div>
+                    <div className={`${color} mb-3 group-hover:scale-110 transition-transform relative z-10 flex items-center justify-center`}><i data-lucide={icon} size={30}></i></div>
                     <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest text-center leading-none mt-1 italic relative z-10">{label}</span>
                 </button>
             );
