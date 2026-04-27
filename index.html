@@ -64,6 +64,15 @@
         const auth = firebase.auth();
         const db = firebase.firestore();
 
+        // ACTIVAR PERSISTENCIA OFFLINE EN FIREBASE
+        db.enablePersistence().catch((err) => {
+            if (err.code == 'failed-precondition') {
+                console.log("Persistencia falló: múltiples pestañas abiertas");
+            } else if (err.code == 'unimplemented') {
+                console.log("El navegador no soporta persistencia");
+            }
+        });
+
         const DAYS_ES = [
             { id: 0, label: 'Domingo' }, { id: 1, label: 'Lunes' }, { id: 2, label: 'Martes' },
             { id: 3, label: 'Miércoles' }, { id: 4, label: 'Jueves' }, { id: 5, label: 'Viernes' },
@@ -95,6 +104,7 @@
             const [reportTab, setReportTab] = useState('general');
             const [toast, setToast] = useState(null);
             const [isSaving, setIsSaving] = useState(false);
+            const [isOffline, setIsOffline] = useState(!navigator.onLine);
             
             const qrScannerRef = useRef(null);
             const lastProcessedRef = useRef(null); 
@@ -103,6 +113,17 @@
             const [fCourse, setFCourse] = useState({ name: '', school: '', students: '', schedule: {} });
             const [editingCourseId, setEditingCourseId] = useState(null);
             const [fTP, setFTP] = useState({ name: '' });
+
+            useEffect(() => {
+                const handleOnline = () => { setIsOffline(false); showToast("Conexión restaurada", "success"); };
+                const handleOffline = () => { setIsOffline(true); showToast("Modo Offline activado", "info"); };
+                window.addEventListener('online', handleOnline);
+                window.addEventListener('offline', handleOffline);
+                return () => {
+                    window.removeEventListener('online', handleOnline);
+                    window.removeEventListener('offline', handleOffline);
+                };
+            }, []);
 
             useEffect(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, [screen, courses]);
 
@@ -262,18 +283,28 @@
                     }));
                     const allRecords = [...sessionAttendance, ...ausentes];
                     allRecords.forEach(rec => { const docRef = path.doc(); batch.set(docRef, rec); });
+                    
+                    // Firestore guardará localmente aunque no haya internet
                     await batch.commit();
+
                     if (GS_API_URL.startsWith("http")) {
-                        showToast("Sincronizando...", "info");
-                        fetch(GS_API_URL, { 
-                            method: 'POST', 
-                            mode: 'no-cors', 
-                            body: JSON.stringify({ action: "attendance_bulk", payload: allRecords }) 
-                        });
+                        if(navigator.onLine) {
+                            showToast("Sincronizando...", "info");
+                            fetch(GS_API_URL, { 
+                                method: 'POST', 
+                                mode: 'no-cors', 
+                                body: JSON.stringify({ action: "attendance_bulk", payload: allRecords }) 
+                            });
+                        } else {
+                            showToast("Guardado localmente. Sincronización pendiente.", "info");
+                        }
                     }
-                    showToast("✓ Jornada Guardada");
+                    showToast("✓ Jornada Finalizada");
                     setTimeout(handleBack, 500);
-                } catch (e) { showToast("Error", "error"); setIsSaving(false); }
+                } catch (e) { 
+                    showToast("Error al guardar", "error"); 
+                    setIsSaving(false); 
+                }
             };
 
             if (loading) return <div className="flex h-screen items-center justify-center bg-indigo-700 text-white font-black uppercase text-xs animate-pulse italic">Cargando...</div>;
@@ -283,6 +314,12 @@
                     {toast && (
                         <div className={`fixed top-10 left-1/2 -translate-x-1/2 z-[100] px-6 py-4 rounded-3xl shadow-2xl animate-in font-black text-[10px] uppercase flex items-center gap-3 border ${toast.type === 'success' ? 'bg-green-500 text-white border-green-400' : 'bg-indigo-600 text-white border-indigo-500'}`}>
                             {toast.msg}
+                        </div>
+                    )}
+
+                    {isOffline && (
+                        <div className="bg-amber-500 text-white text-[8px] font-black uppercase py-1 text-center tracking-widest no-print">
+                            Modo Sin Conexión - Los datos se sincronizarán al recuperar señal
                         </div>
                     )}
 
