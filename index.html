@@ -148,12 +148,32 @@
                 setTimeout(() => setToast(null), 3000);
             };
 
+            // MEJORA DE VOZ PARA SAFARI/iOS
             const speak = (text) => {
                 if ('speechSynthesis' in window) {
+                    // En iOS es importante cancelar el habla anterior
                     window.speechSynthesis.cancel();
+                    
                     const utterance = new SpeechSynthesisUtterance(text);
                     utterance.lang = 'es-ES';
+                    utterance.rate = 1.0;
+                    utterance.pitch = 1.0;
+
+                    // Safari fix: Si el motor está en pausa, resumir
+                    if (window.speechSynthesis.paused) {
+                        window.speechSynthesis.resume();
+                    }
+                    
                     window.speechSynthesis.speak(utterance);
+                }
+            };
+
+            // FUNCIÓN PARA DESBLOQUEAR EL AUDIO (Safari requiere un clic previo)
+            const unlockVoice = () => {
+                if ('speechSynthesis' in window) {
+                    const silent = new SpeechSynthesisUtterance("");
+                    silent.volume = 0;
+                    window.speechSynthesis.speak(silent);
                 }
             };
 
@@ -245,7 +265,10 @@
                     const limit = new Date(); limit.setHours(h, m, 0, 0); 
                     if (now > limit) { status = 'Presente con retraso'; showToast(`${cleanName}: TARDANZA`, "info"); } else { showToast(`${cleanName} ✓`, "success"); }
                 } else { showToast(`${cleanName} ✓`, "success"); }
+                
+                // HABLAR (Ya debería estar desbloqueado por el click previo)
                 speak(cleanName);
+                
                 setSessionAttendance(prev => [...prev, { name: cleanName, course: selectedCourse.name, school: selectedCourse.school, date: now.toISOString().split('T')[0], time: now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), status, type: 'Asistencia' }]);
             };
 
@@ -343,7 +366,7 @@
                                 </div>
 
                                 <div className="px-6 -mt-14 grid grid-cols-2 gap-4">
-                                    <MenuBtn icon="qr-code" label="Pasar Lista" color="text-indigo-600" onClick={() => setScreen('sel-asist')} />
+                                    <MenuBtn icon="qr-code" label="Pasar Lista" color="text-indigo-600" onClick={() => { unlockVoice(); setScreen('sel-asist'); }} />
                                     <MenuBtn icon="clipboard-list" label="Entrega TP" color="text-indigo-600" onClick={() => setScreen('sel-tp')} />
                                     <MenuBtn icon="bar-chart-3" label="Reportes" color="text-slate-500" onClick={() => setScreen('sel-report')} />
                                     <MenuBtn icon="printer" label="Generar QR" color="text-slate-500" onClick={() => setScreen('sel-qr')} />
@@ -467,7 +490,7 @@
                         {screen === 'sel-asist' && (
                             <div className="p-6 space-y-3 animate-in text-left">
                                 {courses.map(c => (
-                                    <button key={c.id} onClick={()=>{setSelectedCourse(c); setScreen('asist-run');}} className="w-full bg-white p-6 rounded-[32px] border flex justify-between items-center shadow-sm text-left active:scale-95 transition-all">
+                                    <button key={c.id} onClick={()=>{ unlockVoice(); setSelectedCourse(c); setScreen('asist-run');}} className="w-full bg-white p-6 rounded-[32px] border flex justify-between items-center shadow-sm text-left active:scale-95 transition-all">
                                         <div><span className="font-black uppercase text-xs text-slate-700 block">{c.name}</span><span className="text-[8px] font-black text-indigo-400 uppercase italic">{c.school}</span></div>
                                         <i data-lucide="chevron-right" className="text-indigo-600"></i>
                                     </button>
