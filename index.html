@@ -15,7 +15,7 @@
     
     <!-- Escaneo QR -->
     <script src="https://unpkg.com/html5-qrcode"></script>
-    <!-- Generación QR LOCAL (Para no usar crédito/datos) -->
+    <!-- Generación QR LOCAL -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
     
     <!-- Firebase SDK Compat -->
@@ -29,9 +29,8 @@
         body { font-family: 'Urbanist', sans-serif; background-color: var(--bg); margin: 0; overflow-x: hidden; -webkit-tap-highlight-color: transparent; }
         .app-container { max-width: 480px; margin: 0 auto; background: white; min-height: 100vh; position: relative; display: flex; flex-direction: column; box-shadow: 0 0 40px rgba(0,0,0,0.05); }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .animate-in { animation: fadeIn 0.3s xase-out; }
+        .animate-in { animation: fadeIn 0.3s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(30%) sepia(100%) saturate(500%) hue-rotate(200deg); }
         
         #reader { border: none !important; border-radius: 48px; overflow: hidden; }
         #reader video { object-fit: cover !important; }
@@ -303,19 +302,29 @@
                 const todayDay = now.getDay();
                 let status = 'Presente';
                 
+                // --- LÓGICA DE TARDANZA ESTRICTA ---
                 if (selectedCourse.schedule && selectedCourse.schedule[todayDay]) {
                     const [h, m] = selectedCourse.schedule[todayDay].split(':').map(Number);
-                    const limit = new Date(); limit.setHours(h, m + 15, 0); 
-                    if (now > limit) status = 'Presente con retraso';
+                    const limit = new Date(); 
+                    limit.setHours(h, m, 0, 0); 
+                    
+                    if (now > limit) {
+                        status = 'Presente con retraso';
+                        showToast(`${cleanName}: TARDANZA`, "info");
+                    } else {
+                        showToast(`${cleanName} ✓`, "success");
+                    }
+                } else {
+                    showToast(`${cleanName} ✓`, "success");
                 }
 
                 speak(cleanName);
-                showToast(`${cleanName} ✓`, "success");
                 
                 setSessionAttendance(prev => [...prev, {
                     name: cleanName, course: selectedCourse.name, date: now.toISOString().split('T')[0],
                     time: now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
-                    status
+                    status,
+                    type: 'Asistencia'
                 }]);
             };
 
@@ -374,18 +383,33 @@
                             status: 'Ausente', time: '--:--', type: 'Asistencia' 
                         }));
                     
-                    const all = [...sessionAttendance, ...ausentes];
-                    all.forEach(rec => {
+                    const allRecords = [...sessionAttendance, ...ausentes];
+                    
+                    // Guardar en Firebase
+                    allRecords.forEach(rec => {
                         const docRef = path.doc();
                         batch.set(docRef, rec);
-                        if (GS_API_URL) fetch(GS_API_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(rec) });
                     });
-
                     await batch.commit();
+
+                    // Sincronizar con Google Sheets (UN SOLO ENVÍO)
+                    if (GS_API_URL) {
+                        try {
+                            await fetch(GS_API_URL, { 
+                                method: 'POST', 
+                                mode: 'no-cors', 
+                                body: JSON.stringify(allRecords) 
+                            });
+                        } catch (e) {
+                            console.warn("Fallo sincronización Sheets, pero se guardó en Nube.");
+                        }
+                    }
+
                     showToast("Lista sincronizada");
                     handleBack();
                 } catch (e) {
                     showToast("Error al guardar", "error");
+                } finally {
                     setIsSaving(false);
                 }
             };
@@ -513,7 +537,7 @@
                                     </div>
 
                                     <div className="space-y-3">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase ml-2 italic">Días y Horario</p>
+                                        <p className="text-[9px] font-black text-slate-400 uppercase ml-2 italic">Días y Horario de Inicio</p>
                                         <div className="flex justify-between gap-1">
                                             {DAYS_ES.slice(1,7).map(d => (
                                                 <button key={d.id} onClick={()=>{
@@ -538,8 +562,8 @@
                                     </div>
 
                                     <div className="space-y-2">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase ml-2 italic">Lista de Alumnos (un nombre por línea)</p>
-                                        <textarea value={fCourse.students} onChange={e=>setFCourse({...fCourse, students:e.target.value})} placeholder="Pega aquí la lista..." className="w-full p-4 bg-slate-50 rounded-2xl h-40 outline-none text-xs font-medium shadow-inner"></textarea>
+                                        <p className="text-[9px] font-black text-slate-400 uppercase ml-2 italic">Nómina de Alumnos</p>
+                                        <textarea value={fCourse.students} onChange={e=>setFCourse({...fCourse, students:e.target.value})} placeholder="Lista de alumnos (uno por línea)..." className="w-full p-4 bg-slate-50 rounded-2xl h-40 outline-none text-xs font-medium shadow-inner"></textarea>
                                     </div>
 
                                     <button onClick={saveCourse} disabled={isSaving} className={`w-full ${isSaving ? 'bg-slate-400' : 'bg-indigo-700'} text-white p-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl flex items-center justify-center gap-2`}>
@@ -604,7 +628,9 @@
                                     {sessionAttendance.map((s, idx) => (
                                         <div key={idx} className="bg-white p-3 rounded-2xl flex justify-between items-center border border-slate-100 animate-in mx-2 shadow-sm">
                                             <span className="text-[10px] font-black text-slate-600 uppercase italic truncate max-w-[70%]">{s.name}</span>
-                                            <span className="text-[9px] font-bold text-green-500 uppercase tracking-widest italic">{s.time} ✓</span>
+                                            <span className={`text-[9px] font-bold uppercase tracking-widest italic ${s.status === 'Presente' ? 'text-green-500' : 'text-amber-500'}`}>
+                                                {s.status === 'Presente' ? '✓' : 'T'} {s.time}
+                                            </span>
                                         </div>
                                     ))}
                                 </div>
@@ -617,7 +643,7 @@
                         {screen === 'sel-tp' && (
                             <div className="p-6 space-y-3 animate-in text-left">
                                 {courses.map(c => (
-                                    <button key={c.id} onClick={()=>{setSelectedCourse(c); setScreen('tp-list');}} className="w-full bg-white p-6 rounded-[32px] border flex justify-between items-center shadow-sm text-left">
+                                    <button key={c.id} onClick={()=>{setSelectedCourse(c); setScreen('tp-list');}} className="w-full bg-white p-6 rounded-[32px] border flex justify-between items-center shadow-sm text-left active:scale-95 transition-all">
                                         <span className="font-black uppercase text-xs text-slate-700">{c.name}</span>
                                         <i data-lucide="chevron-right" className="text-indigo-600"></i>
                                     </button>
@@ -633,10 +659,10 @@
                                         <input value={fTP.name} onChange={e=>setFTP({name:e.target.value})} placeholder="Nombre del TP..." className="flex-1 p-4 bg-slate-50 rounded-2xl outline-none font-black text-sm shadow-inner" />
                                         <button onClick={async ()=>{
                                             if(!fTP.name) return;
-                                            await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('assignments').add({name:fTP.name, courseId:selectedCourse.id});
+                                            await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('assignments').add({name:fTP.name, courseId:selectedCourse.id, createdAt: firebase.firestore.FieldValue.serverTimestamp()});
                                             setFTP({name:''});
                                             showToast("TP creado");
-                                        }} className="p-4 bg-indigo-600 text-white rounded-2xl shadow-md"><i data-lucide="plus"></i></button>
+                                        }} className="p-4 bg-indigo-600 text-white rounded-2xl shadow-md active:scale-90 transition-all"><i data-lucide="plus"></i></button>
                                     </div>
                                 </div>
                                 <div className="space-y-3">
@@ -658,7 +684,7 @@
                                 <div className="bg-indigo-50 p-6 rounded-[32px] flex justify-between items-center border border-indigo-100 shadow-inner">
                                     <div className="text-left">
                                         <p className="text-[9px] font-black text-indigo-400 uppercase italic">{selectedCourse.name}</p>
-                                        <h2 className="text-xl font-black text-indigo-700 uppercase">{selectedTP.name}</h2>
+                                        <h2 className="text-xl font-black text-indigo-700 uppercase leading-none">{selectedTP.name}</h2>
                                     </div>
                                     <span className="font-black text-indigo-700 text-2xl">{deliveries.filter(d => d.tpId === selectedTP.id && d.status === 'Entregado').length} / {selectedCourse.students.length}</span>
                                 </div>
@@ -667,7 +693,7 @@
                                         const d = deliveries.find(x => x.tpId === selectedTP.id && x.studentName === s);
                                         const status = d ? d.status : 'Pendiente';
                                         return (
-                                            <div key={`${selectedTP.id}-${idx}`} className={`p-4 rounded-2xl flex justify-between items-center border transition-all cursor-pointer ${status === 'Entregado' ? 'bg-green-50 border-green-200' : 'bg-white border-slate-100 shadow-sm'}`}
+                                            <div key={`${selectedTP.id}-${idx}`} className={`p-4 rounded-2xl flex justify-between items-center border transition-all cursor-pointer active:scale-95 ${status === 'Entregado' ? 'bg-green-50 border-green-200' : 'bg-white border-slate-100 shadow-sm'}`}
                                                  onClick={()=>toggleTP(s, selectedTP.id, status)}>
                                                 <span className={`text-[10px] font-black uppercase truncate flex-1 pr-4 text-left ${status === 'Entregado' ? 'text-green-700' : 'text-slate-500'}`}>{s}</span>
                                                 <div className={`px-4 py-2 rounded-xl font-black text-[9px] uppercase tracking-widest ${status === 'Entregado' ? 'bg-green-600 text-white shadow-md' : 'bg-red-50 text-red-500'}`}>{status}</div>
@@ -681,7 +707,7 @@
                         {screen === 'sel-qr' && (
                             <div className="p-6 space-y-3 animate-in text-left">
                                 {courses.map(c => (
-                                    <button key={c.id} onClick={()=>{setSelectedCourse(c); setScreen('qr-gen');}} className="w-full bg-white p-6 rounded-[32px] border flex justify-between items-center shadow-sm text-left">
+                                    <button key={c.id} onClick={()=>{setSelectedCourse(c); setScreen('qr-gen');}} className="w-full bg-white p-6 rounded-[32px] border flex justify-between items-center shadow-sm text-left active:scale-95 transition-all">
                                         <span className="font-black uppercase text-xs text-slate-700">{c.name}</span>
                                         <i data-lucide="printer" className="text-indigo-600"></i>
                                     </button>
@@ -764,9 +790,9 @@
                                                         <div key={k} className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-100">
                                                             <span className="text-[9px] font-black text-slate-400 uppercase italic">{reportTab === 'mensual' ? MONTHS_ES[k] : k}</span>
                                                             <div className="flex space-x-3 text-center">
-                                                                <div><p className="text-[11px] font-black text-green-600">{d.p}</p><p className="text-[6px] font-black text-green-400 uppercase text-center">P</p></div>
-                                                                <div><p className="text-[11px] font-black text-amber-600">{d.t}</p><p className="text-[6px] font-black text-amber-500 uppercase text-center">T</p></div>
-                                                                <div><p className="text-[11px] font-black text-red-600">{d.a}</p><p className="text-[6px] font-black text-red-400 uppercase text-center">A</p></div>
+                                                                <div><p className="text-[11px] font-black text-green-600 leading-none">{d.p}</p><p className="text-[6px] font-black text-green-400 uppercase text-center">P</p></div>
+                                                                <div><p className="text-[11px] font-black text-amber-600 leading-none">{d.t}</p><p className="text-[6px] font-black text-amber-500 uppercase text-center">T</p></div>
+                                                                <div><p className="text-[11px] font-black text-red-600 leading-none">{d.a}</p><p className="text-[6px] font-black text-red-400 uppercase text-center">A</p></div>
                                                             </div>
                                                         </div>
                                                     ))}
