@@ -372,17 +372,11 @@
                 const today = new Date().toISOString().split('T')[0];
                 
                 try {
-                    // 1. Obtener y preparar borrado de registros de hoy
-                    const existingDocs = await path.get();
-                    const toDelete = existingDocs.docs.filter(d => {
-                        const data = d.data();
-                        return data.course === selectedCourse.name && data.date === today;
-                    });
-                    
+                    // 1. Firebase (Nube principal)
+                    const existingDocs = await path.where('course', '==', selectedCourse.name).where('date', '==', today).get();
                     const batch = db.batch();
-                    toDelete.forEach(doc => batch.delete(doc.ref));
+                    existingDocs.docs.forEach(doc => batch.delete(doc.ref));
 
-                    // 2. Preparar registros finales
                     const ausentes = selectedCourse.students
                         .filter(n => !sessionAttendance.find(s => s.name === n))
                         .map(n => ({ 
@@ -392,36 +386,35 @@
                     
                     const allRecords = [...sessionAttendance, ...ausentes];
                     
-                    // 3. Guardar en Firebase (Nube)
                     allRecords.forEach(rec => {
                         const docRef = path.doc();
                         batch.set(docRef, rec);
                     });
                     await batch.commit();
 
-                    // 4. Sincronizar con Google Sheets (MASIVO - FIRE AND FORGET)
-                    // No esperamos a que responda para que la app no se congele
+                    // 2. Google Sheets (Sincronización robusta)
                     if (GS_API_URL && GS_API_URL.startsWith("http")) {
-                        showToast("Sincronizando...", "info");
-                        fetch(GS_API_URL, { 
+                        showToast("Enviando a Sheets...", "info");
+                        
+                        // Mandamos el JSON como texto plano para evitar bloqueos CORS
+                        await fetch(GS_API_URL, { 
                             method: 'POST', 
                             mode: 'no-cors',
-                            cache: 'no-cache',
                             headers: { 'Content-Type': 'text/plain' },
-                            body: JSON.stringify(allRecords) 
-                        }).catch(e => console.log("Error silencioso en Sheets:", e));
+                            body: JSON.stringify({
+                                action: "attendance_bulk",
+                                payload: allRecords
+                            }) 
+                        });
+                        console.log("Datos enviados a Google Sheets.");
                     }
 
                     showToast("✓ Jornada Guardada");
-                    
-                    // Regresar a Home inmediatamente
-                    setTimeout(() => {
-                        handleBack();
-                    }, 500);
+                    setTimeout(handleBack, 800);
                     
                 } catch (e) {
                     console.error("Error finalizando:", e);
-                    showToast("Error al guardar", "error");
+                    showToast("Error de guardado", "error");
                     setIsSaving(false);
                 }
             };
@@ -457,7 +450,7 @@
                     {screen !== 'home' && (
                         <div className="bg-indigo-700 text-white p-6 pb-12 rounded-b-[40px] shadow-lg sticky top-0 z-50 flex items-center no-print">
                             <button onClick={handleBack} className="p-2 bg-white/10 rounded-full active:scale-90 transition-all"><i data-lucide="chevron-left"></i></button>
-                            <h1 className="flex-1 text-center font-black uppercase text-[10px] tracking-widest italic truncate px-4">
+                            <h1 className="flex-1 text-center font-black uppercase text-[10px] tracking-widest italic truncate px-4 text-center">
                                 {screen === 'manage' ? 'Gestionar' : screen === 'asist-run' ? selectedCourse?.name : screen === 'report-view' ? 'Reportes' : screen === 'qr-gen' ? 'Credenciales' : screen === 'tp-check' ? 'Entregas' : 'Asistente'}
                             </h1>
                             <div className="w-10"></div>
@@ -498,12 +491,12 @@
                                 </div>
 
                                 <div className="p-8 text-left">
-                                    <h2 className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-4 px-2 italic">Cursos Activos</h2>
+                                    <h2 className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-4 px-2 italic text-left">Cursos Activos</h2>
                                     <div className="space-y-3">
                                         {courses.map(c => (
                                             <div key={c.id} className="bg-slate-50 p-5 rounded-[32px] border border-slate-100 flex items-center justify-between shadow-sm">
                                                 <p className="font-black text-slate-700 uppercase text-xs leading-none truncate max-w-[70%] text-left">{c.name}</p>
-                                                <p className="text-[8px] text-indigo-400 font-bold uppercase mt-1 italic tracking-widest">{c.students.length} alumnos</p>
+                                                <p className="text-[8px] text-indigo-400 font-bold uppercase mt-1 italic tracking-widest text-right">{c.students.length} alumnos</p>
                                             </div>
                                         ))}
                                     </div>
@@ -523,13 +516,13 @@
                                         )}
                                     </div>
                                     
-                                    <div className="space-y-2 text-left">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase ml-2 italic">Identificación</p>
+                                    <div className="space-y-2 text-left text-left">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase ml-2 italic text-left">Identificación</p>
                                         <input value={fCourse.name} onChange={e=>setFCourse({...fCourse, name:e.target.value})} placeholder="Nombre: Ej 4to 1ra Ciencias" className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-none outline-none text-sm shadow-inner text-left" />
                                     </div>
 
                                     <div className="space-y-3 text-left">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase ml-2 italic">Días y Horario de Inicio</p>
+                                        <p className="text-[9px] font-black text-slate-400 uppercase ml-2 italic text-left">Días y Horario de Inicio</p>
                                         <div className="flex justify-between gap-1">
                                             {DAYS_ES.slice(1,7).map(d => (
                                                 <button key={d.id} onClick={()=>{
@@ -554,7 +547,7 @@
                                     </div>
 
                                     <div className="space-y-2 text-left">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase ml-2 italic">Nómina de Alumnos</p>
+                                        <p className="text-[9px] font-black text-slate-400 uppercase ml-2 italic text-left">Nómina de Alumnos</p>
                                         <textarea value={fCourse.students} onChange={e=>setFCourse({...fCourse, students:e.target.value})} placeholder="Lista de alumnos (uno por línea)..." className="w-full p-4 bg-slate-50 rounded-2xl h-40 outline-none text-xs font-medium shadow-inner text-left"></textarea>
                                     </div>
 
@@ -565,7 +558,7 @@
                                 </div>
                                 
                                 <div className="space-y-3 pt-4 text-left">
-                                    <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest px-2 pt-4 italic">Cursos Registrados</p>
+                                    <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest px-2 pt-4 italic text-left">Cursos Registrados</p>
                                     {courses.map(c => (
                                         <div key={c.id} className="bg-white p-4 rounded-2xl border flex justify-between items-center shadow-sm">
                                             <div className="flex-1 text-left">
@@ -605,11 +598,11 @@
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="bg-green-50 p-6 rounded-3xl border border-green-100 shadow-sm text-center">
-                                        <p className="text-5xl font-black text-green-600 leading-none">{sessionAttendance.length}</p>
+                                        <p className="text-5xl font-black text-green-600 leading-none text-center">{sessionAttendance.length}</p>
                                         <p className="text-[10px] font-black uppercase text-green-400 mt-2 text-center">Presentes</p>
                                     </div>
                                     <div className="bg-red-50 p-6 rounded-3xl border border-red-100 shadow-sm text-center">
-                                        <p className="text-5xl font-black text-red-600 leading-none">{selectedCourse.students.length - sessionAttendance.length}</p>
+                                        <p className="text-5xl font-black text-red-600 leading-none text-center">{selectedCourse.students.length - sessionAttendance.length}</p>
                                         <p className="text-[10px] font-black uppercase text-red-400 mt-2 text-center">Ausentes</p>
                                     </div>
                                 </div>
@@ -617,7 +610,7 @@
                                     {sessionAttendance.map((s, idx) => (
                                         <div key={idx} className="bg-white p-3 rounded-2xl flex justify-between items-center border border-slate-100 animate-in mx-2 shadow-sm">
                                             <span className="text-[10px] font-black text-slate-600 uppercase italic truncate max-w-[70%] text-left">{s.name}</span>
-                                            <span className={`text-[9px] font-bold uppercase tracking-widest italic ${s.status === 'Presente' ? 'text-green-500' : 'text-amber-500'}`}>
+                                            <span className={`text-[9px] font-bold uppercase tracking-widest italic ${s.status === 'Presente' ? 'text-green-500' : 'text-amber-500'} text-right`}>
                                                 {s.status === 'Presente' ? '✓' : 'T'} {s.time}
                                             </span>
                                         </div>
@@ -671,13 +664,13 @@
                         {screen === 'tp-check' && selectedTP && selectedCourse && (
                             <div className="p-6 space-y-4 animate-in pb-20 text-left">
                                 <div className="bg-indigo-50 p-6 rounded-[40px] border border-indigo-100 flex justify-between items-center shadow-inner">
-                                    <div className="text-left">
+                                    <div className="text-left text-left">
                                        <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest italic text-left">{selectedCourse.name}</p>
                                        <h2 className="text-xl font-black text-indigo-800 uppercase leading-none text-left">{selectedTP.name}</h2>
                                     </div>
                                     <div className="text-right">
-                                       <p className="text-3xl font-black text-indigo-700">{deliveries.filter(d => d.tpId === selectedTP.id && d.status === 'Entregado').length} / {selectedCourse.students.length}</p>
-                                       <p className="text-[8px] font-black uppercase text-indigo-400 italic">Entregas</p>
+                                       <p className="text-3xl font-black text-indigo-700 text-right">{deliveries.filter(d => d.tpId === selectedTP.id && d.status === 'Entregado').length} / {selectedCourse.students.length}</p>
+                                       <p className="text-[8px] font-black uppercase text-indigo-400 italic text-right">Entregas</p>
                                     </div>
                                 </div>
                                 <div className="space-y-2 overflow-y-auto pb-10 scrollbar-hide px-1 text-left">
@@ -688,7 +681,7 @@
                                             <div key={`${selectedTP.id}-${idx}`} className={`flex items-center justify-between p-4 rounded-3xl border transition-all cursor-pointer active:scale-95 ${status === 'Entregado' ? 'bg-green-50 border-green-200' : 'bg-white border-slate-100 shadow-sm'}`}
                                                  onClick={()=>toggleTP(s, selectedTP.id, status)}>
                                                 <span className={`text-[10px] font-black uppercase truncate flex-1 pr-4 text-left ${status === 'Entregado' ? 'text-green-700' : 'text-slate-500'}`}>{s}</span>
-                                                <div className={`px-4 py-2 rounded-2xl font-black text-[9px] uppercase tracking-widest transition-all ${status === 'Entregado' ? 'bg-green-600 text-white shadow-md' : 'bg-slate-50 text-slate-400'}`}>
+                                                <div className={`px-4 py-2 rounded-2xl font-black text-[9px] uppercase tracking-widest transition-all ${status === 'Entregado' ? 'bg-green-600 text-white shadow-md' : 'bg-slate-50 text-slate-400'} text-right`}>
                                                   {status}
                                                 </div>
                                             </div>
@@ -703,7 +696,7 @@
                                 {courses.map(c => (
                                     <button key={c.id} onClick={()=>{setSelectedCourse(c); setScreen('qr-gen');}} className="w-full bg-white p-6 rounded-[32px] border flex justify-between items-center shadow-sm text-left active:scale-95 transition-all">
                                         <span className="font-black uppercase text-xs text-slate-700 text-left">{c.name}</span>
-                                        <i data-lucide="printer" className="text-indigo-600"></i>
+                                        <i data-lucide="printer" className="text-indigo-600 text-right"></i>
                                     </button>
                                 ))}
                             </div>
@@ -734,7 +727,7 @@
                                 {courses.map(c => (
                                     <button key={c.id} onClick={()=>{setSelectedCourse(c); setScreen('report-view');}} className="w-full bg-white p-6 rounded-[32px] border flex justify-between items-center shadow-sm text-left active:scale-95 transition-all">
                                         <span className="font-black uppercase text-xs text-slate-700 text-left">{c.name}</span>
-                                        <i data-lucide="bar-chart-3" className="text-indigo-600"></i>
+                                        <i data-lucide="bar-chart-3" className="text-indigo-600 text-right"></i>
                                     </button>
                                 ))}
                             </div>
@@ -744,7 +737,7 @@
                             <div className="p-6 space-y-4 animate-in pb-24 text-center">
                                 <div className="flex bg-slate-200 p-1.5 rounded-3xl shadow-inner mb-4">
                                     {['general', 'mensual', 'anual'].map(t => (
-                                        <button key={t} onClick={() => setReportTab(t)} className={`flex-1 py-3 text-[10px] font-black uppercase rounded-[22px] transition-all flex items-center justify-center ${reportTab === t ? 'bg-white text-indigo-600 shadow-xl' : 'text-slate-400'}`}>
+                                        <button key={t} onClick={() => setReportTab(t)} className={`flex-1 py-3 text-[10px] font-black uppercase rounded-[22px] transition-all flex items-center justify-center ${reportTab === t ? 'bg-white text-indigo-600 shadow-xl' : 'text-slate-400'} text-center`}>
                                             {t === 'general' ? 'Gral' : t === 'mensual' ? 'Mes' : 'Año'}
                                         </button>
                                     ))}
@@ -752,17 +745,17 @@
                                 {reportTab === 'general' ? (
                                     <div className="bg-white rounded-[40px] border overflow-hidden shadow-xl animate-in text-center">
                                         <table className="w-full text-xs text-center border-collapse">
-                                            <thead className="bg-slate-50 text-[8px] font-black uppercase text-slate-400 border-b">
+                                            <thead className="bg-slate-50 text-[8px] font-black uppercase text-slate-400 border-b text-center">
                                                 <tr><th className="p-4 text-left">Alumno</th><th>P</th><th>T</th><th>A</th><th className="p-4 text-right">%</th></tr>
                                             </thead>
-                                            <tbody className="divide-y divide-slate-50 text-center">
+                                            <tbody className="divide-y divide-slate-50 text-center text-center">
                                                 {reportStats.map((s, i) => (
-                                                    <tr key={i} className="active:bg-slate-50">
+                                                    <tr key={i} className="active:bg-slate-50 text-center">
                                                         <td className="p-4 text-left font-black text-slate-700 text-[9px] uppercase italic truncate max-w-[140px] text-left">{s.name}</td>
-                                                        <td className="text-green-600 font-bold">{s.p}</td>
-                                                        <td className="text-amber-500 font-bold">{s.t}</td>
-                                                        <td className="text-red-500 font-bold">{s.a}</td>
-                                                        <td className={`p-4 text-right font-black ${s.perc > 80 ? 'text-green-600' : 'text-red-500'}`}>{s.perc}%</td>
+                                                        <td className="text-green-600 font-bold text-center">{s.p}</td>
+                                                        <td className="text-amber-500 font-bold text-center">{s.t}</td>
+                                                        <td className="text-red-500 font-bold text-center">{s.a}</td>
+                                                        <td className={`p-4 text-right font-black ${s.perc > 80 ? 'text-green-600' : 'text-red-500'} text-right`}>{s.perc}%</td>
                                                     </tr>
                                                 ))}
                                             </tbody>
@@ -773,20 +766,20 @@
                                         {reportStats.map((s, i) => (
                                             <div key={i} className="bg-white p-6 rounded-[40px] shadow-sm border border-slate-100 space-y-4 animate-in">
                                                 <div className="flex justify-between items-start">
-                                                    <div className="max-w-[70%] text-left">
+                                                    <div className="max-w-[70%] text-left text-left">
                                                         <p className="font-black text-slate-800 text-[11px] uppercase leading-tight italic text-left">{s.name}</p>
                                                         <p className="text-[8px] font-black text-slate-400 uppercase mt-1 tracking-widest italic text-left">{reportTab === 'mensual' ? 'Resumen Mensual' : 'Resumen Anual'}</p>
                                                     </div>
-                                                    <div className={`px-4 py-2 rounded-2xl font-black text-xs ${s.perc > 80 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>{s.perc}%</div>
+                                                    <div className={`px-4 py-2 rounded-2xl font-black text-xs ${s.perc > 80 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'} text-right`}>{s.perc}%</div>
                                                 </div>
-                                                <div className="space-y-2 text-center">
+                                                <div className="space-y-2 text-center text-center">
                                                     {(reportTab === 'mensual' ? Object.entries(s.monthly) : Object.entries(s.yearly)).sort().reverse().map(([k, d]) => (
                                                         <div key={k} className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-100">
                                                             <span className="text-[9px] font-black text-slate-400 uppercase italic text-left">{reportTab === 'mensual' ? MONTHS_ES[k] : k}</span>
-                                                            <div className="flex space-x-3 text-center">
-                                                                <div><p className="text-[11px] font-black text-green-600 leading-none">{d.p}</p><p className="text-[6px] font-black text-green-400 uppercase text-center">P</p></div>
-                                                                <div><p className="text-[11px] font-black text-amber-600 leading-none">{d.t}</p><p className="text-[6px] font-black text-amber-500 uppercase text-center">T</p></div>
-                                                                <div><p className="text-[11px] font-black text-red-600 leading-none">{d.a}</p><p className="text-[6px] font-black text-red-400 uppercase text-center">A</p></div>
+                                                            <div className="flex space-x-3 text-center text-center">
+                                                                <div className="text-center"><p className="text-[11px] font-black text-green-600 leading-none text-center">{d.p}</p><p className="text-[6px] font-black text-green-400 uppercase text-center">P</p></div>
+                                                                <div className="text-center"><p className="text-[11px] font-black text-amber-600 leading-none text-center">{d.t}</p><p className="text-[6px] font-black text-amber-500 uppercase text-center">T</p></div>
+                                                                <div className="text-center"><p className="text-[11px] font-black text-red-600 leading-none text-center">{d.a}</p><p className="text-[6px] font-black text-red-400 uppercase text-center">A</p></div>
                                                             </div>
                                                         </div>
                                                     ))}
@@ -812,7 +805,7 @@
                     <div className={`${color} mb-3 group-hover:scale-110 transition-transform relative z-10 flex items-center justify-center`}>
                         <i data-lucide={icon} size={30}></i>
                     </div>
-                    <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest text-center leading-none mt-1 italic relative z-10">{label}</span>
+                    <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest text-center leading-none mt-1 italic relative z-10 text-center">{label}</span>
                 </button>
             );
         };
