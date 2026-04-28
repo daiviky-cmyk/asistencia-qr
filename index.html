@@ -58,7 +58,7 @@
         };
 
         const appId = 'assistant-day-pro-v2';
-        const GS_API_URL = "https://script.google.com/macros/s/AKfycbzGNi32bO3J3h-yvaTszcZvKWUHNRbBjE8VeQJgvb8STn-Pw6VHyMWnaf3ktID90pLSLA/exec";
+        const GS_API_URL = "https://script.google.com/macros/s/AKfycbyJZab9PoZGaDBQn7jK6SO_73sZhkbz_vBjvHGwYvrJG0RW88TuAW9xhG1XLB-vq8xs/exec";
 
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const auth = firebase.auth();
@@ -309,24 +309,13 @@
                     if (GS_API_URL.startsWith("http")) {
                         if(navigator.onLine) {
                             showToast("Sincronizando...", "info");
-                            // Enviar cada registro con formato correcto al Apps Script
-                            allRecords.forEach(rec => {
-                                fetch(GS_API_URL, {
-                                    method: 'POST',
-                                    mode: 'no-cors',
-                                    headers: {'Content-Type': 'application/json'},
-                                    body: JSON.stringify({
-                                        name: rec.name,
-                                        course: rec.course,
-                                        school: rec.school || '',
-                                        date: rec.date,
-                                        time: rec.time,
-                                        status: rec.status
-                                    })
-                                }).catch(()=>{});
+                            fetch(GS_API_URL, { 
+                                method: 'POST', 
+                                mode: 'no-cors', 
+                                body: JSON.stringify({ action: "attendance_bulk", payload: allRecords }) 
                             });
                         } else {
-                            showToast("Sin conexión. Datos guardados en Firebase.", "info");
+                            showToast("Guardado localmente. Sincronización pendiente.", "info");
                         }
                     }
                     showToast("✓ Jornada Finalizada");
