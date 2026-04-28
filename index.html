@@ -98,6 +98,9 @@
             const [records, setRecords] = useState([]);
             const [assignments, setAssignments] = useState([]);
             const [deliveries, setDeliveries] = useState([]);
+            const [evaluations, setEvaluations] = useState([]);
+            const [evalNotas, setEvalNotas] = useState([]);
+            const [selectedTrimestre, setSelectedTrimestre] = useState(1);
             const [selectedCourse, setSelectedCourse] = useState(null);
             const [selectedTP, setSelectedTP] = useState(null);
             const [sessionAttendance, setSessionAttendance] = useState([]);
@@ -140,7 +143,9 @@
                 const unsubA = colBase.collection('attendance').onSnapshot(snap => setRecords(snap.docs.map(d => d.data())));
                 const unsubAs = colBase.collection('assignments').onSnapshot(snap => setAssignments(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
                 const unsubD = colBase.collection('deliveries').onSnapshot(snap => setDeliveries(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-                return () => { unsubC(); unsubA(); unsubAs(); unsubD(); };
+                const unsubEv = colBase.collection('evaluations').onSnapshot(snap => setEvaluations(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+                const unsubEn = colBase.collection('eval_notas').onSnapshot(snap => setEvalNotas(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+                return () => { unsubC(); unsubA(); unsubAs(); unsubD(); unsubEv(); unsubEn(); };
             }, [user]);
 
             const showToast = (msg, type = 'success') => {
@@ -367,6 +372,7 @@
                                     <MenuBtn icon="bar-chart-3" label="Reportes" color="text-slate-500" onClick={() => setScreen('sel-report')} />
                                     <MenuBtn icon="printer" label="Generar QR" color="text-slate-500" onClick={() => setScreen('sel-qr')} />
                                     <MenuBtn icon="settings" label="Gestionar" color="text-slate-400" onClick={() => setScreen('manage')} />
+                                    <MenuBtn icon="star" label="Evaluaciones" color="text-yellow-500" onClick={() => setScreen('sel-eval')} />
                                 </div>
 
                                 <div className="px-6 mt-8 space-y-4">
@@ -481,6 +487,196 @@
                             </div>
                         )}
 
+                        
+                        {screen === 'sel-eval' && (
+                            <div className="p-6 space-y-3 animate-in text-left">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic mb-2">Seleccioná un curso</p>
+                                {courses.map(c => (
+                                    <button key={c.id} onClick={()=>{setSelectedCourse(c); setScreen('eval-trimestre');}} className="w-full bg-white p-6 rounded-[32px] border flex justify-between items-center shadow-sm text-left active:scale-95 transition-all">
+                                        <div><span className="font-black uppercase text-xs text-slate-700 block">{c.name}</span><span className="text-[8px] font-black text-indigo-400 uppercase italic">{c.school}</span></div>
+                                        <i data-lucide="star" className="text-yellow-500"></i>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {screen === 'eval-trimestre' && selectedCourse && (() => {
+                            const getNotaColor = (v) => {
+                                if (v === 'A') return 'text-red-600';
+                                const n = parseFloat(v);
+                                if (isNaN(n)) return 'text-slate-300';
+                                if (n >= 6) return 'text-slate-900';
+                                if (n >= 4) return 'text-green-600';
+                                return 'text-red-600';
+                            };
+                            const getBgColor = (v) => {
+                                if (v === 'A') return 'bg-red-50 border-red-200';
+                                const n = parseFloat(v);
+                                if (isNaN(n)) return 'bg-slate-50 border-slate-100';
+                                if (n >= 6) return 'bg-slate-50 border-slate-200';
+                                if (n >= 4) return 'bg-green-50 border-green-200';
+                                return 'bg-red-50 border-red-200';
+                            };
+                            const getPromTrim = (trim) => {
+                                const evsTrim = evaluations.filter(e => e.courseId === selectedCourse.id && e.trimestre === trim);
+                                return selectedCourse.students.map(s => {
+                                    const notas = evsTrim.map(ev => {
+                                        const n = evalNotas.find(x => x.evalId === ev.id && x.studentName === s);
+                                        return n ? n.nota : null;
+                                    }).filter(v => v !== null && v !== 'A');
+                                    const prom = notas.length > 0 ? notas.reduce((a,b)=>a+parseFloat(b),0)/notas.length : null;
+                                    return { student: s, prom };
+                                });
+                            };
+                            return (
+                                <div className="p-6 space-y-4 animate-in pb-24 text-left">
+                                    {/* Selector trimestre */}
+                                    <div className="flex bg-slate-100 p-1.5 rounded-3xl shadow-inner">
+                                        {[1,2,3].map(t => (
+                                            <button key={t} onClick={()=>setSelectedTrimestre(t)} className={`flex-1 py-3 text-[10px] font-black uppercase rounded-[22px] transition-all ${selectedTrimestre===t?'bg-white text-indigo-600 shadow-xl':'text-slate-400'}`}>
+                                                {t===1?'1er Trim':t===2?'2do Trim':'3er Trim'}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    {/* Evaluación + Recuperatorio del trimestre seleccionado */}
+                                    {['Evaluación','Recuperatorio'].map(tipo => {
+                                        const ev = evaluations.find(e => e.courseId===selectedCourse.id && e.trimestre===selectedTrimestre && e.tipo===tipo);
+                                        return (
+                                            <div key={tipo} className="bg-white rounded-[32px] border shadow-sm overflow-hidden">
+                                                <div className="flex items-center justify-between p-5 border-b border-slate-50">
+                                                    <div>
+                                                        <p className="font-black text-slate-800 text-xs uppercase">{tipo}</p>
+                                                        {ev ? (
+                                                            <p className="text-[8px] font-black text-indigo-400 uppercase italic mt-1">{ev.nombre} {ev.fecha ? '· '+ev.fecha : ''}</p>
+                                                        ) : (
+                                                            <p className="text-[8px] font-black text-slate-300 uppercase italic mt-1">Sin configurar</p>
+                                                        )}
+                                                    </div>
+                                                    <button onClick={async()=>{
+                                                        const nombre = prompt('Nombre ('+(tipo==='Evaluación'?'ej: Parcial 1':'ej: Recuperatorio 1')+'):', ev?.nombre||'');
+                                                        if(nombre===null) return;
+                                                        const fecha = prompt('Fecha (ej: 15/04/2025):', ev?.fecha||'');
+                                                        if(fecha===null) return;
+                                                        const path = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('evaluations');
+                                                        const docId = selectedCourse.id+'_'+selectedTrimestre+'_'+tipo;
+                                                        await path.doc(docId).set({
+                                                            courseId: selectedCourse.id,
+                                                            trimestre: selectedTrimestre,
+                                                            tipo, nombre: nombre.trim(), fecha: fecha.trim(),
+                                                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                                                        });
+                                                    }} className="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-2xl font-black text-[9px] uppercase active:scale-95 transition-all">
+                                                        {ev ? 'Editar' : '+ Configurar'}
+                                                    </button>
+                                                </div>
+                                                {ev ? (
+                                                    <div className="divide-y divide-slate-50">
+                                                        {selectedCourse.students.map((s,i) => {
+                                                            const notaDoc = evalNotas.find(x=>x.evalId===ev.id&&x.studentName===s);
+                                                            const nota = notaDoc ? notaDoc.nota : null;
+                                                            return (
+                                                                <div key={i} className={`flex items-center justify-between px-5 py-3 ${nota!==null?getBgColor(nota):''}`}>
+                                                                    <span className="text-[10px] font-black uppercase text-slate-600 flex-1 truncate pr-3">{s}</span>
+                                                                    <div className="flex items-center gap-3">
+                                                                        <span className={`text-xl font-black ${nota!==null?getNotaColor(nota):'text-slate-300'}`}>
+                                                                            {nota !== null ? nota : '—'}
+                                                                        </span>
+                                                                        <button onClick={async()=>{
+                                                                            const val = prompt('Nota de '+s+'\n(1-10 o A de Ausente):', nota||'');
+                                                                            if(val===null) return;
+                                                                            const clean = val.trim().toUpperCase();
+                                                                            if(clean !== 'A') {
+                                                                                const n = parseFloat(clean);
+                                                                                if(isNaN(n)||n<1||n>10) return alert('Ingresá un número del 1 al 10, o la letra A');
+                                                                            }
+                                                                            const path = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('eval_notas');
+                                                                            const docId = ev.id+'_'+s.replace(/\s+/g,'_');
+                                                                            await path.doc(docId).set({
+                                                                                evalId: ev.id,
+                                                                                studentName: s,
+                                                                                courseId: selectedCourse.id,
+                                                                                trimestre: selectedTrimestre,
+                                                                                tipo,
+                                                                                nota: clean==='A' ? 'A' : parseFloat(clean),
+                                                                                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                                                                            });
+                                                                        }} className="bg-slate-100 text-slate-500 px-3 py-1.5 rounded-xl font-black text-[9px] uppercase active:scale-95 transition-all">
+                                                                            {nota !== null ? 'Editar' : 'Nota'}
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                        {/* Promedio del grupo */}
+                                                        <div className="flex items-center justify-between px-5 py-4 bg-indigo-50">
+                                                            <span className="text-[10px] font-black uppercase text-indigo-600">Promedio del grupo</span>
+                                                            <span className="text-xl font-black text-indigo-700">
+                                                                {(() => {
+                                                                    const vals = selectedCourse.students.map(s => {
+                                                                        const nd = evalNotas.find(x=>x.evalId===ev.id&&x.studentName===s);
+                                                                        return nd && nd.nota !== 'A' ? parseFloat(nd.nota) : null;
+                                                                    }).filter(v=>v!==null);
+                                                                    return vals.length > 0 ? (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1) : '—';
+                                                                })()}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="p-6 text-center">
+                                                        <p className="text-[9px] font-bold text-slate-300 uppercase italic">Configurá primero la evaluación</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+
+                                    {/* Tabla resumen promedios */}
+                                    <div className="bg-white rounded-[40px] border overflow-hidden shadow-xl">
+                                        <div className="p-5 border-b border-slate-50">
+                                            <p className="text-[10px] font-black text-indigo-600 uppercase italic">Promedios por Alumno</p>
+                                        </div>
+                                        <table className="w-full text-xs border-collapse">
+                                            <thead className="bg-slate-50">
+                                                <tr>
+                                                    <th className="p-3 text-left text-[8px] font-black uppercase text-slate-400">Alumno</th>
+                                                    <th className="p-3 text-center text-[8px] font-black uppercase text-slate-400">1°T</th>
+                                                    <th className="p-3 text-center text-[8px] font-black uppercase text-slate-400">2°T</th>
+                                                    <th className="p-3 text-center text-[8px] font-black uppercase text-slate-400">3°T</th>
+                                                    <th className="p-3 text-center text-[8px] font-black uppercase text-slate-400">Final</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50">
+                                                {selectedCourse.students.map((s,i) => {
+                                                    const getP = (trim) => {
+                                                        const evsTrim = evaluations.filter(e=>e.courseId===selectedCourse.id&&e.trimestre===trim);
+                                                        const notas = evsTrim.map(ev => {
+                                                            const nd = evalNotas.find(x=>x.evalId===ev.id&&x.studentName===s);
+                                                            return nd && nd.nota !== 'A' ? parseFloat(nd.nota) : null;
+                                                        }).filter(v=>v!==null);
+                                                        return notas.length>0 ? notas.reduce((a,b)=>a+b,0)/notas.length : null;
+                                                    };
+                                                    const p1=getP(1), p2=getP(2), p3=getP(3);
+                                                    const ps=[p1,p2,p3].filter(v=>v!==null);
+                                                    const pf = ps.length>0 ? ps.reduce((a,b)=>a+b,0)/ps.length : null;
+                                                    const nc = (v) => v===null?'text-slate-300':v>=6?'text-slate-900 font-black':v>=4?'text-green-600 font-black':'text-red-600 font-black';
+                                                    return (
+                                                        <tr key={i}>
+                                                            <td className="p-3 font-black text-slate-700 text-[9px] uppercase truncate max-w-[90px]">{s}</td>
+                                                            <td className={`p-3 text-center ${nc(p1)}`}>{p1!==null?p1.toFixed(1):'—'}</td>
+                                                            <td className={`p-3 text-center ${nc(p2)}`}>{p2!==null?p2.toFixed(1):'—'}</td>
+                                                            <td className={`p-3 text-center ${nc(p3)}`}>{p3!==null?p3.toFixed(1):'—'}</td>
+                                                            <td className={`p-3 text-center text-sm ${nc(pf)}`}>{pf!==null?pf.toFixed(1):'—'}</td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
                         {screen === 'sel-asist' && (
                             <div className="p-6 space-y-3 animate-in text-left">
                                 {courses.map(c => (
@@ -572,19 +768,47 @@
                                        <p className="text-[8px] font-black uppercase text-indigo-400 italic">Entregas</p>
                                     </div>
                                 </div>
+                                {/* Resumen de estados */}
+                                <div className="grid grid-cols-3 gap-3 mb-2">
+                                    <div className="bg-green-50 p-4 rounded-3xl border border-green-200 text-center shadow-sm">
+                                        <p className="text-2xl font-black text-green-600 leading-none">{deliveries.filter(d=>d.tpId===selectedTP.id&&d.status==='Entregado').length}</p>
+                                        <p className="text-[8px] font-black uppercase text-green-400 mt-1">Entregado</p>
+                                    </div>
+                                    <div className="bg-orange-50 p-4 rounded-3xl border border-orange-200 text-center shadow-sm">
+                                        <p className="text-2xl font-black text-orange-500 leading-none">{deliveries.filter(d=>d.tpId===selectedTP.id&&d.status==='Entregado con Tardanza').length}</p>
+                                        <p className="text-[8px] font-black uppercase text-orange-400 mt-1">Con Tardanza</p>
+                                    </div>
+                                    <div className="bg-red-50 p-4 rounded-3xl border border-red-200 text-center shadow-sm">
+                                        <p className="text-2xl font-black text-red-500 leading-none">{selectedCourse.students.filter(s=>!deliveries.find(d=>d.tpId===selectedTP.id&&d.studentName===s)).length}</p>
+                                        <p className="text-[8px] font-black uppercase text-red-400 mt-1">Pendiente</p>
+                                    </div>
+                                </div>
                                 <div className="space-y-2">
                                     {selectedCourse.students.map((s, idx) => {
                                         const d = deliveries.find(x => x.tpId === selectedTP.id && x.studentName === s);
                                         const status = d ? d.status : 'Pendiente';
+                                        const bgClass = status === 'Entregado' ? 'bg-green-50 border-green-200' : status === 'Entregado con Tardanza' ? 'bg-orange-50 border-orange-200' : 'bg-white border-slate-100 shadow-sm';
+                                        const textClass = status === 'Entregado' ? 'text-green-700' : status === 'Entregado con Tardanza' ? 'text-orange-600' : 'text-slate-500';
+                                        const btnClass = status === 'Entregado' ? 'bg-green-600 text-white' : status === 'Entregado con Tardanza' ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-400';
                                         return (
-                                            <div key={idx} className={`flex items-center justify-between p-4 rounded-3xl border transition-all cursor-pointer ${status === 'Entregado' ? 'bg-green-50 border-green-200' : 'bg-white border-slate-100 shadow-sm'}`}
-                                                 onClick={async ()=>{
-                                                    const path = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('deliveries');
-                                                    const docId = `${selectedTP.id}_${s.replace(/\s+/g, '_')}`;
-                                                    const nStatus = status === 'Entregado' ? 'Pendiente' : 'Entregado';
-                                                    if (nStatus === 'Entregado') await path.doc(docId).set({ tpId: selectedTP.id, studentName: s, status: nStatus, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
-                                                    else await path.doc(docId).delete();
-                                                 }}>
+                                            <div key={idx} className={`flex items-center justify-between p-4 rounded-3xl border transition-all ${bgClass}`}>
+                                                <span className={`text-[10px] font-black uppercase flex-1 pr-2 truncate ${textClass}`}>{s}</span>
+                                                <div className="flex gap-2">
+                                                    <button onClick={async()=>{
+                                                        const path = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('deliveries');
+                                                        const docId = `${selectedTP.id}_${s.replace(/\s+/g,'_')}`;
+                                                        const nStatus = status === 'Entregado' ? 'Pendiente' : 'Entregado';
+                                                        if(nStatus === 'Pendiente') await path.doc(docId).delete();
+                                                        else await path.doc(docId).set({tpId:selectedTP.id,studentName:s,status:nStatus,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+                                                    }} className={`px-3 py-2 rounded-2xl font-black text-[9px] uppercase ${status==='Entregado'?'bg-green-600 text-white':'bg-slate-100 text-slate-400'}`}>✓</button>
+                                                    <button onClick={async()=>{
+                                                        const path = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('deliveries');
+                                                        const docId = `${selectedTP.id}_${s.replace(/\s+/g,'_')}`;
+                                                        const nStatus = status === 'Entregado con Tardanza' ? 'Pendiente' : 'Entregado con Tardanza';
+                                                        if(nStatus === 'Pendiente') await path.doc(docId).delete();
+                                                        else await path.doc(docId).set({tpId:selectedTP.id,studentName:s,status:nStatus,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+                                                    }} className={`px-3 py-2 rounded-2xl font-black text-[9px] uppercase ${status==='Entregado con Tardanza'?'bg-orange-500 text-white':'bg-slate-100 text-slate-400'}`}>⏱</button>
+                                                </div>
                                                 <span className={`text-[10px] font-black uppercase truncate flex-1 pr-4 text-left ${status === 'Entregado' ? 'text-green-700' : 'text-slate-500'}`}>{s}</span>
                                                 <div className={`px-4 py-2 rounded-2xl font-black text-[9px] uppercase tracking-widest transition-all ${status === 'Entregado' ? 'bg-green-600 text-white shadow-md' : 'bg-slate-50 text-slate-400'} text-right`}>{status}</div>
                                             </div>
@@ -608,13 +832,58 @@
                         {screen === 'report-view' && selectedCourse && (
                             <div className="p-6 space-y-4 animate-in pb-24 text-center border-t border-slate-100">
                                 <div className="flex bg-slate-200 p-1.5 rounded-3xl shadow-inner mb-4">
-                                    {['general', 'mensual', 'anual'].map(t => (
+                                    {['general', 'mensual', 'anual', 'tareas'].map(t => (
                                         <button key={t} onClick={() => setReportTab(t)} className={`flex-1 py-3 text-[10px] font-black uppercase rounded-[22px] transition-all ${reportTab === t ? 'bg-white text-indigo-600 shadow-xl' : 'text-slate-400'}`}>
-                                            {t === 'general' ? 'Gral' : t === 'mensual' ? 'Mes' : 'Año'}
+                                            {t === 'general' ? 'Gral' : t === 'mensual' ? 'Mes' : t === 'anual' ? 'Año' : 'TPs'}
                                         </button>
                                     ))}
                                 </div>
-                                {reportTab === 'general' ? (
+                                {reportTab === 'tareas' ? (
+                                    <div className="bg-white rounded-[40px] border overflow-hidden shadow-xl animate-in text-left">
+                                        <div className="p-6 border-b border-slate-50">
+                                            <p className="text-[10px] font-black uppercase text-indigo-600 italic">Resumen de Trabajos Prácticos</p>
+                                        </div>
+                                        {selectedCourse.students.map((student, i) => {
+                                            const studentAssignments = assignments.filter(a => a.courseId === selectedCourse.id);
+                                            const entregados = deliveries.filter(d => d.studentName === student && studentAssignments.some(a=>a.id===d.tpId) && d.status==='Entregado').length;
+                                            const tardanza = deliveries.filter(d => d.studentName === student && studentAssignments.some(a=>a.id===d.tpId) && d.status==='Entregado con Tardanza').length;
+                                            const pendientes = studentAssignments.length - entregados - tardanza;
+                                            const tpsPendientes = studentAssignments.filter(a => !deliveries.find(d=>d.tpId===a.id&&d.studentName===student));
+                                            return (
+                                                <div key={i} className="p-5 border-b border-slate-50 last:border-none">
+                                                    <div className="flex justify-between items-start mb-3">
+                                                        <p className="font-black text-slate-800 text-[11px] uppercase leading-tight italic flex-1 pr-2">{student}</p>
+                                                        <div className={`px-3 py-1 rounded-full text-[8px] font-black uppercase ${pendientes===0?'bg-green-50 text-green-600':'bg-red-50 text-red-500'}`}>
+                                                            {pendientes===0?'Al día':'Debe '+pendientes}
+                                                        </div>
+                                                    </div>
+                                                    <div className="grid grid-cols-3 gap-2 mb-3">
+                                                        <div className="bg-green-50 p-2 rounded-2xl text-center border border-green-100">
+                                                            <p className="text-green-600 font-black text-lg leading-none">{entregados}</p>
+                                                            <p className="text-[7px] font-black uppercase text-green-400 mt-1">Entregado</p>
+                                                        </div>
+                                                        <div className="bg-orange-50 p-2 rounded-2xl text-center border border-orange-100">
+                                                            <p className="text-orange-500 font-black text-lg leading-none">{tardanza}</p>
+                                                            <p className="text-[7px] font-black uppercase text-orange-400 mt-1">Con Tardanza</p>
+                                                        </div>
+                                                        <div className="bg-red-50 p-2 rounded-2xl text-center border border-red-100">
+                                                            <p className="text-red-500 font-black text-lg leading-none">{pendientes}</p>
+                                                            <p className="text-[7px] font-black uppercase text-red-400 mt-1">Pendiente</p>
+                                                        </div>
+                                                    </div>
+                                                    {tpsPendientes.length > 0 && (
+                                                        <div className="bg-slate-50 rounded-2xl p-3">
+                                                            <p className="text-[8px] font-black uppercase text-slate-400 mb-2 italic">TPs pendientes:</p>
+                                                            {tpsPendientes.map((a,j) => (
+                                                                <p key={j} className="text-[10px] font-bold text-red-500 leading-relaxed">• {a.name}{a.dueDate?' (vence: '+a.dueDate+')':''}</p>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : reportTab === 'general' ? (
                                     <div className="bg-white rounded-[40px] border overflow-hidden shadow-xl animate-in text-center">
                                         <table className="w-full text-xs border-collapse">
                                             <thead className="bg-slate-50 text-[8px] font-black uppercase text-slate-400 border-b">
