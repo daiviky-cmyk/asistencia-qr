@@ -58,7 +58,7 @@
         };
 
         const appId = 'assistant-day-pro-v2';
-        const GS_API_URL = "https://script.google.com/macros/s/AKfycbzlyYDYgeuQcba0nVqiqMPYxBRWEs0MUmUv5Q6bGum-T7cDyFk30Ku37OXxeAVfFKD7/exec";
+        const GS_API_URL = "https://script.google.com/macros/s/AKfycbzGNi32bO3J3h-yvaTszcZvKWUHNRbBjE8VeQJgvb8STn-Pw6VHyMWnaf3ktID90pLSLA/exec";
 
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const auth = firebase.auth();
@@ -306,27 +306,23 @@
                     
                     await batch.commit();
 
-                    if (GS_API_URL.startsWith("http")) {
-                        if(navigator.onLine) {
-                            showToast("Sincronizando...", "info");
-                            allRecords.forEach(rec => {
-                                fetch(GS_API_URL, {
-                                    method: 'POST',
-                                    mode: 'no-cors',
-                                    headers: {'Content-Type': 'application/json'},
-                                    body: JSON.stringify({
-                                        name:   rec.name,
-                                        course: rec.course,
-                                        school: rec.school || '',
-                                        date:   rec.date,
-                                        time:   rec.time,
-                                        status: rec.status
-                                    })
-                                }).catch(()=>{});
-                            });
-                        } else {
-                            showToast("Sin conexión. Datos en Firebase.", "info");
-                        }
+                    if (GS_API_URL) {
+                        allRecords.forEach(function(rec) {
+                            fetch(GS_API_URL, {
+                                method: 'POST',
+                                mode: 'no-cors',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({
+                                    name:   rec.name   || '',
+                                    course: rec.course || '',
+                                    school: rec.school || '',
+                                    date:   rec.date   || '',
+                                    time:   rec.time   || '',
+                                    status: rec.status || ''
+                                })
+                            }).catch(function(){});
+                        });
+                    }
                     }
                     showToast("✓ Jornada Finalizada");
                     setTimeout(handleBack, 500);
