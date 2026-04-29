@@ -284,8 +284,18 @@
 
             useEffect(() => {
                 if (screen === 'asist-run' && selectedCourse) {
-                    const timer = setTimeout(startScanner, 500);
-                    return () => clearTimeout(timer);
+                    const today = new Date().toISOString().split('T')[0];
+                    const path = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('attendance');
+                    path.where('course', '==', selectedCourse.name).where('date', '==', today).get().then(snap => {
+                        if (!snap.empty) {
+                            const existing = snap.docs.map(d => d.data()).filter(r => r.status !== 'Ausente');
+                            if (existing.length > 0) {
+                                setSessionAttendance(existing);
+                                existing.forEach(r => processedNamesInSession.current.add(r.name));
+                                showToast(existing.length + ' registro(s) recuperados de hoy', 'info');
+                            }
+                        }
+                    }).catch(() => {}).finally(() => { setTimeout(startScanner, 500); });
                 }
             }, [screen, selectedCourse]);
 
